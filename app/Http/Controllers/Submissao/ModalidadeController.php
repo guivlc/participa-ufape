@@ -8,12 +8,21 @@ use App\Models\Submissao\DataExtra;
 use App\Models\Submissao\MidiaExtra;
 use App\Models\Submissao\Modalidade;
 use App\Models\Submissao\TipoApresentacao;
+use App\Services\EtapasModalidadeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
 
 class ModalidadeController extends Controller
 {
+    public function impactoDesativacao(Request $request, Modalidade $modalidade)
+    {
+        $this->authorize('isCoordenadorOrCoordenadorDasComissoes', $modalidade->evento);
+        $request->validate(['etapa' => 'required|in:avaliacao,correcao,validacao,versao_final']);
+
+        return response()->json(app(EtapasModalidadeService::class)->impacto($modalidade, $request->etapa));
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -51,7 +60,7 @@ class ModalidadeController extends Controller
     {
         $modalidade = new Modalidade();
         $modalidade->fill($request->validated());
-        if ($request->has('avaliacaoDuranteSubmissao')) {
+        if ($request->boolean('habilitar_avaliacao') && $request->boolean('avaliacaoDuranteSubmissao')) {
             $modalidade->avaliacaoDuranteSubmissao = true;
             $modalidade->save();
         }
@@ -179,10 +188,12 @@ class ModalidadeController extends Controller
      */
     public function update(Request $request)
     {
-        $modalidadeEdit = Modalidade::find($request->modalidadeEditId);
+        $modalidadeEdit = Modalidade::findOrFail($request->modalidadeEditId);
         $evento = $modalidadeEdit->evento;
         $this->authorize('isCoordenadorOrCoordenadorDasComissoes', $evento);
-
+        $etapas = app(EtapasModalidadeService::class);
+        $etapas->normalizar($request, (string) $modalidadeEdit->id);
+        $etapas->confirmarDesativacao($request, $modalidadeEdit);
 
         $rules = [
             'nome' . $request->modalidadeEditId => ['required', 'string'],
@@ -193,7 +204,7 @@ class ModalidadeController extends Controller
 
             'inícioCorreção' . $request->modalidadeEditId => ['nullable', 'date', 'after:fimDaRevisão' . $request->modalidadeEditId, 'required_with:fimCorreção' . $request->modalidadeEditId],
             'fimCorreção' . $request->modalidadeEditId => ['nullable', 'date', 'after:inícioCorreção' . $request->modalidadeEditId, 'required_with:inícioCorreção' . $request->modalidadeEditId],
-            'inícioValidação' . $request->modalidadeEditId => ['nullable', 'date', 'after:fimCorreção' . $request->modalidadeEditId, 'required_with:fimValidação' . $request->modalidadeEditId],
+            'inícioValidação' . $request->modalidadeEditId => ['nullable', 'date', 'required_with:fimValidação' . $request->modalidadeEditId],
             'fimValidação' . $request->modalidadeEditId => ['nullable', 'date', 'after:inícioValidação' . $request->modalidadeEditId, 'required_with:inícioValidação' . $request->modalidadeEditId],
 
             'resultado' . $request->modalidadeEditId => ['required', 'date', 'after:fimRevisão' . $request->modalidadeEditId],
@@ -246,13 +257,23 @@ class ModalidadeController extends Controller
             $rules['nome_es' . $request->modalidadeEditId] = ['required','string'];
         }
 
+        $id = $modalidadeEdit->id;
+        $rules['inicio_versao_final' . $id] = [$request->boolean('habilitar_versao_final') ? 'required' : 'nullable', 'date'];
+        $rules['fim_versao_final' . $id] = [$request->boolean('habilitar_versao_final') ? 'required' : 'nullable', 'date', 'after:inicio_versao_final' . $id];
+        $avaliacao = $request->boolean('habilitar_avaliacao');
+        $validacao = $request->boolean('habilitar_validacao');
+        $rules['inícioRevisão' . $id] = $avaliacao
+            ? ['required', 'date', ($request->boolean('avaliacaoDuranteSubmissao') ? 'after_or_equal:inícioSubmissão' : 'after:fimSubmissão') . $id]
+            : ['nullable'];
+        $rules['fimRevisão' . $id] = $avaliacao ? ['required', 'date', 'after:inícioRevisão' . $id] : ['nullable'];
+        // Correção pode coexistir com os períodos de avaliação (dados históricos).
+        $correcao = $request->boolean('habilitar_correcao');
+        $rules['inícioCorreção' . $id] = [$correcao ? 'required' : 'nullable', 'date'];
+        $rules['fimCorreção' . $id] = [$correcao ? 'required' : 'nullable', 'date', 'after:inícioCorreção' . $id];
+        $rules['inícioValidação' . $id] = [$validacao ? 'required' : 'nullable', 'date'];
+        $rules['fimValidação' . $id] = [$validacao ? 'required' : 'nullable', 'date', 'after:inícioValidação' . $id];
+        $rules['resultado' . $id] = ['required', 'date', 'after:' . ($avaliacao ? 'fimRevisão' : 'fimSubmissão') . $id];
         $validatedData = $request->validate($rules);
-
-        if ($request->has('avaliacaoDuranteSubmissao')) {
-            $validatedData += $request->validate(['inícioRevisão' . $request->modalidadeEditId => ['nullable', 'date']]);
-        } else {
-            $validatedData += $request->validate(['inícioRevisão' . $request->modalidadeEditId => ['nullable', 'date', 'after:fimSubmissão' . $request->modalidadeEditId]]);
-        }
 
         $caracteres = $modalidadeEdit->caracteres;
         $palavras = $modalidadeEdit->palavras;
@@ -375,6 +396,8 @@ class ModalidadeController extends Controller
         $modalidadeEdit->fimCorrecao = $request->input('fimCorreção' . $request->modalidadeEditId);
         $modalidadeEdit->inicioValidacao = $request->input('inícioValidação' . $request->modalidadeEditId);
         $modalidadeEdit->fimValidacao = $request->input('fimValidação' . $request->modalidadeEditId);
+        $modalidadeEdit->fim_versao_final = $request->input('fim_versao_final' . $request->modalidadeEditId);
+        $modalidadeEdit->inicio_versao_final = $request->input('inicio_versao_final' . $request->modalidadeEditId);
         $modalidadeEdit->inicioResultado = $request->input('resultado' . $request->modalidadeEditId);
         $modalidadeEdit->numMaxCoautores = $request->input('numMaxCoautores' . $request->modalidadeEditId);
         $modalidadeEdit->texto = $request->input('texto' . $request->modalidadeEditId);
@@ -383,7 +406,7 @@ class ModalidadeController extends Controller
         $modalidadeEdit->palavras = $palavras;
         $modalidadeEdit->apresentacao = $request->apresentacao ? true : false;
 
-        $modalidadeEdit->avaliacaoDuranteSubmissao = $request->has('avaliacaoDuranteSubmissao');
+        $modalidadeEdit->avaliacaoDuranteSubmissao = $avaliacao && $request->boolean('avaliacaoDuranteSubmissao');
         $modalidadeEdit->submissaoUnica = $request->has('submissaoUnica');
 
         // dd($request->file('arquivoRegras'.$request->modalidadeEditId));

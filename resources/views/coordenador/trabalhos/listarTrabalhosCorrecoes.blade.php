@@ -118,7 +118,11 @@
                                         <tbody>
                                             @foreach($modalidade->trabalho as $trabalho)
                                             <tr>
-                                                <td><input type="checkbox" name="trabalhosSelecionados[]" value="{{$trabalho->id}}"></td>
+                                                @if($trabalho->atribuicoes()->wherePivot('parecer', 'encaminhado')->exists() &&  ! $trabalho->arquivoCorrecao()->exists())
+                                                    <td><input type="checkbox" name="trabalhosSelecionados[]" value="{{$trabalho->id}}"></td>
+                                                @else
+                                                    <td></td>
+                                                @endif
                                                 <td> {{ $trabalho->id }}</td>
                                                 <td>
                                                     @if ($trabalho->arquivo)
@@ -156,9 +160,11 @@
 
                                                 <td style="text-align:center">
                                                     @foreach ($trabalho->atribuicoes as $revisor)
-                                                        <a href="{{route('coord.visualizarRespostaFormulario', ['eventoId' => $evento->id, 'modalidadeId' => $trabalho->modalidadeId, 'trabalhoId' => $trabalho->id, 'revisorId' => $revisor->id])}}">
-                                                            <img src="{{asset('img/icons/eye-regular.svg')}}" style="width:20px">
-                                                        </a>
+                                                        @if($trabalho->avaliado($revisor->user))
+                                                            <a href="{{route('coord.visualizarRespostaFormulario', ['eventoId' => $evento->id, 'modalidadeId' => $trabalho->modalidadeId, 'trabalhoId' => $trabalho->id, 'revisorId' => $revisor->id])}}">
+                                                                <img src="{{asset('img/icons/eye-regular.svg')}}" style="width:20px">
+                                                            </a>
+                                                        @endif
                                                         <br>
                                                     @endforeach
                                                 </td>

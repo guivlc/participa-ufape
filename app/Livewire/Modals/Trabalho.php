@@ -111,15 +111,17 @@ class Trabalho extends Component
         }
 
         if (! Gate::any([
-            'isCoordenadorOrCoordenadorDaComissaoCientifica',
+            'isCoordenadorOrCoordenadorDasComissoes',
             'isCoordenadorEixo',
         ], $evento)) {
             session()->flash('error', 'Acesso negado.');
             return;
         }
 
-        if ($trabalho->avaliado($revisor->user)) {
-            session()->flash('error', 'O revisor já deu início à avaliação do trabalho, ele não pode ser removido.');
+        $atribuicao = $trabalho->atribuicoes()->whereKey($revisor->id)->first();
+
+        if ($atribuicao && $atribuicao->pivot->parecer != 'processando') {
+            session()->flash('error', 'Não é possível remover avaliador/a que possua um parecer já emitido. Para isso, é necessário apagar o parecer, e daí, realizar a exclusão.');
             return;
         }
 

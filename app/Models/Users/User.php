@@ -3,6 +3,7 @@
 namespace App\Models\Users;
 
 use App\Models\CandidatoAvaliador;
+use App\Models\PerfilIdentitario;
 use App\Models\Submissao\Area;
 use App\Models\Submissao\Atividade;
 use App\Models\Submissao\Certificado;
@@ -31,7 +32,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name', 'email', 'password', 'cpf','cnpj', 'passaporte', 'instituicao', 'celular',
         'especProfissional', 'enderecoId',
-        'usuarioTemp', 'user_id',
+        'usuarioTemp', 'user_id', 'incompleto',
     ];
 
     /**
@@ -51,6 +52,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'incompleto' => 'boolean',
     ];
 
     protected static function boot()
@@ -211,7 +213,7 @@ class User extends Authenticatable
 
     public function certificados()
     {
-        return $this->belongsToMany(Certificado::class, 'certificado_user')->withTrashed()->withPivot('id', 'valido', 'validacao', 'trabalho_id', 'palestra_id', 'comissao_id')->withTimestamps();
+        return $this->belongsToMany(Certificado::class, 'certificado_user')->withTrashed()->withPivot('id', 'valido', 'validacao', 'trabalho_id', 'palestra_id', 'comissao_id', 'path')->withTimestamps();
     }
 
     public function atividades()
@@ -246,8 +248,41 @@ class User extends Authenticatable
             'area_id'
         )->where('coordenadores_eixos_tematicos.evento_id', $evento_id);
 
-        $query->select('areas.*'); 
+        $query->select('areas.*');
 
         return $query;
+    }
+
+    public function perfilIdentitario()
+    {
+        return $this->hasOne(PerfilIdentitario::class, 'userId', 'id');
+    }
+
+    public function anuidades()
+    {
+        return $this->hasMany(\App\Models\Anuidade::class, 'user_id');
+    }
+
+    /**
+     * Retorna true se o usuário tiver uma anuidade aprovada e válida hoje.
+     */
+    public function ehAssociado()
+    {
+        return $this->anuidades()
+                    ->where('status', 'approved')
+                    ->where('validade', '>=', now())
+                    ->exists();
+    }
+
+    /**
+     * Retorna o registro da anuidade ativa, se existir.
+     */
+    public function anuidadeAtual()
+    {
+        return $this->anuidades()
+                    ->where('status', 'approved')
+                    ->where('validade', '>=', now())
+                    ->latest()
+                    ->first();
     }
 }

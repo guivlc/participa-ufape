@@ -60,17 +60,37 @@
         </div>
 
         @if($eixoSelecionado)
-            {{-- Filtro de Status --}}
-            <div class="btn-group mb-2" role="group">
-                <button id="btnGroupDrop1" type="button" class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                    Opções de Filtro: {{ ucfirst(str_replace('_', ' ', $status)) }}
-                </button>
-                <div class="dropdown-menu" aria-labelledby="btnGroupDrop1">
-                    <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'rascunho']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Todos</a>
-                    <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'arquivado']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Arquivados</a>
-                    <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'no_revisor']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Sem avaliador</a>
-                    <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'with_revisor']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Com avaliador</a>
+            {{-- Botão para baixar todos os trabalhos --}}
+            <div class="mb-3 d-flex justify-content-between align-items-center">
+                <div class="btn-group" role="group">
+                    <button id="btnGroupDrop1" type="button" class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        Opções de Filtro: {{ ucfirst(str_replace('_', ' ', $status)) }}
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="btnGroupDrop1">
+                        <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'rascunho']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Todos</a>
+                        <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'arquivado']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Arquivados</a>
+                        <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'no_revisor']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Sem avaliador</a>
+                        <a class="dropdown-item" href="{{ route('coord.listarTrabalhosPorEixo', ['column' => 'titulo', 'direction' => 'asc', 'status' => 'with_revisor']) }}?eixo_id={{ $eixoSelecionado }}&eventoId={{ $evento->id }}">Com avaliador</a>
+                    </div>
                 </div>
+
+                @if($trabalhos && $trabalhos->count() > 0)
+                    <div class="d-flex flex-column align-items-end">
+                        <a href="{{ route('coord.downloadTrabalhosEixo', ['eventoId' => $evento->id, 'eixo_id' => $eixoSelecionado, 'status' => $status]) }}" 
+                        class="btn btn-primary mb-2"
+                        onclick="return confirm('Deseja baixar todos os trabalhos deste eixo (versão corrigida)? Isso pode levar alguns minutos dependendo da quantidade de trabalhos.');">
+                            <img src="{{ asset('img/icons/file-download-solid.svg') }}" style="width: 16px; margin-right: 5px;" alt="Download">
+                            Baixar Todos os Trabalhos (ZIP)
+                        </a>
+                        <a href="{{ route('coord.downloadTrabalhosAprovadosEixo', ['eventoId' => $evento->id, 'eixo_id' => $eixoSelecionado]) }}" 
+                        class="btn btn-success"
+                        style="margin-left: 10px;"
+                        onclick="return confirm('Deseja baixar apenas os trabalhos APROVADOS deste eixo?');">
+                            <img src="{{ asset('img/icons/file-download-solid.svg') }}" style="width: 16px; margin-right: 5px;" alt="Download">
+                            Baixar Todos os Trabalhos Aprovados (ZIP)
+                        </a>
+                    </div>
+                @endif
             </div>
 
             @foreach ($modalidades as $modalidade)
@@ -97,7 +117,11 @@
                                                     <th>Atribuir</th>
                                                     @can('isCoordenadorOrCoordenadorDaComissaoCientifica', $evento)
                                                         <th>Arquivar</th>
-                                                        <th>Excluir</th>
+                                                        @if ($status == 'rascunho')
+                                                            <th style="display: none;">Excluir</th>
+                                                        @else
+                                                            <th>Excluir</th>
+                                                        @endif
                                                     @endcan
                                                     <th>Editar</th>
                                                 </tr>
@@ -112,6 +136,7 @@
                                                             @else
                                                                 {{$trabalho->titulo}}
                                                             @endif
+                                                            <div>@include('trabalho.link-versao-final')</div>
                                                         </td>
                                                         <td>{{ $trabalho->autor->name }}</td>
                                                         @foreach ($modalidade->midiasExtra as $midia)
@@ -140,11 +165,11 @@
                                                                     <a href="{{ route('trabalho.status', [$trabalho->id, 'arquivado'] ) }}"><img src="{{ asset('img/icons/archive.png') }}" width="20" alt="Arquivar"></a>
                                                                 @endif
                                                             </td>
-                                                            <td style="text-align:center">
-                                                                @if ($trabalho->status == 'arquivado')
-                                                                    <a href="#" data-bs-toggle="modal" data-bs-target="#modalExcluirTrabalho_{{$trabalho->id}}"><img src="{{ asset('img/icons/lixo.png') }}" width="20" alt="Excluir"></a>
-                                                                @endif
-                                                            </td>
+                                                            @if ($trabalho->status == 'arquivado')
+                                                                <td style="text-align:center">
+                                                                        <a href="#" data-bs-toggle="modal" data-bs-target="#modalExcluirTrabalho_{{$trabalho->id}}"><img src="{{ asset('img/icons/lixo.png') }}" width="20" alt="Excluir"></a>
+                                                                </td>
+                                                            @endif
                                                         @endcan
                                                         <td style="text-align:center">
                                                             <a href="{{ route('coord.trabalho.edit', ['id' => $trabalho->id]) }}"><img src="{{ asset('img/icons/edit-regular.svg') }}" width="20" alt="Editar"></a>

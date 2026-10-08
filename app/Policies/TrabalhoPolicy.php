@@ -10,6 +10,25 @@ class TrabalhoPolicy
 {
     use HandlesAuthorization;
 
+    public function enviarVersaoFinal(User $user, Trabalho $trabalho): bool
+    {
+        return $this->isAutorTrabalho($user, $trabalho)
+            && ! $trabalho->trashed() && $trabalho->status !== 'arquivado'
+            && $trabalho->modalidade->estaEmPeriodoDeVersaoFinal()
+            && ! $trabalho->versoesFinais()->exists();
+    }
+
+    public function visualizarVersaoFinal(User $user, Trabalho $trabalho): bool
+    {
+        return $this->isAutorTrabalho($user, $trabalho)
+            || $trabalho->coautors()->where('autorId', $user->id)->exists()
+            || $trabalho->atribuicoes()->where('user_id', $user->id)->exists()
+            || (new EventoPolicy())->isCoordenadorOrComissaoCientifica($user, $trabalho->evento)
+            || (new EventoPolicy())->isCoordenadorOrCoordenadorDasComissoes($user, $trabalho->evento)
+            || \App\Models\Users\CoordEixoTematico::where('user_id', $user->id)
+                ->where('evento_id', $trabalho->eventoId)->where('area_id', $trabalho->areaId)->exists();
+    }
+
     /**
      * Create a new policy instance.
      *
@@ -32,6 +51,9 @@ class TrabalhoPolicy
 
     public function permissaoCorrecao(User $user, Trabalho $trabalho)
     {
+        if (!$trabalho->modalidade->correcaoHabilitada()) {
+            return false;
+        }
         $membro = $trabalho->evento->usuariosDaComissao()->where([['user_id', $user->id], ['evento_id', $trabalho->evento->id]])->first();
         $resultado = false;
         if ($user->id == $trabalho->evento->coordenadorId || ! (is_null($membro))) {

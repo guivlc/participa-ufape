@@ -84,8 +84,7 @@
                                                 <select class="form-control" :name="'participantes[' + index + '][categoria]'"
                                                     x-model="participante.categoria">
                                                     <option value="0" disabled>-- Escolha a categoria --</option>
-                                                    @foreach ($evento->categoriasParticipantes()->where('permite_inscricao',
-                                                    true)->get() as $categoria)
+                                                    @foreach ($evento->categoriasParticipantes()->get() as $categoria)
                                                     <option value="{{$categoria->id}}">{{$categoria->nome}}</option>
                                                     @endforeach
                                                 </select>
@@ -446,16 +445,24 @@
 
             $.ajax({
                 type: 'GET',
-                url: '{{ route("search.user") }}',
+                url: '{{ route("search.userInscricao") }}',
                 data: {
                     email: email,
+                    evento_id: {{ $evento->id }},
                     _token: '{{csrf_token()}}'
                 },
                 dataType: 'json',
                 success: function(res) {
                     if (res.user[0] != null) {
                         statusElement.innerHTML = '<img src="{{asset("img/icons/check-solid.svg")}}" alt="Encontrado" style="width: 14px; filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);">';
-                        messageElement.textContent = `Usuário encontrado: ${res.user[0].name}`;
+                        messageElement.textContent = `Usuário encontrado: ${res.user[0].name} `;
+                        if (res.inscricaoFinalizada !== undefined && res.inscricaoFinalizada !== null) {
+                            if (res.inscricaoFinalizada === true) {
+                                messageElement.textContent += ' - Inscrição já finalizada';
+                            } else if (res.inscricaoFinalizada === false) {
+                                messageElement.textContent += ' - Pré-inscrição detectada (será cancelada automaticamente)';
+                            }
+                        }
                         messageElement.className = 'form-text text-success';
                         inputElement.classList.add('is-valid');
                         inputElement.classList.remove('is-invalid');
@@ -484,11 +491,12 @@
             const inputElement = document.querySelector(`#cpf-${index}`);
 
 
-            $.ajax({
+             $.ajax({
                 type: 'GET',
-                url: '{{ route("search.user") }}',
+                url: '{{ route("search.userInscricao") }}',
                 data: {
                     cpf: cpf,
+                    evento_id: {{ $evento->id }},
                     _token: '{{csrf_token()}}'
                 },
                 dataType: 'json',
@@ -496,6 +504,13 @@
                     if (res.user[0] != null) {
                         statusElement.innerHTML = '<img src="{{asset("img/icons/check-solid.svg")}}" alt="Encontrado" style="width: 14px; filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);">';
                         messageElement.textContent = `Usuário encontrado: ${res.user[0].name}`;
+                        if (res.inscricaoFinalizada !== undefined && res.inscricaoFinalizada !== null) {
+                            if (res.inscricaoFinalizada === true) {
+                                messageElement.textContent += ' - Inscrição já finalizada';
+                            } else if (res.inscricaoFinalizada === false) {
+                                messageElement.textContent += ' - Pré-inscrição detectada (será cancelada automaticamente)';
+                            }
+                        }
                         messageElement.className = 'form-text text-success';
                         inputElement.classList.add('is-valid');
                         inputElement.classList.remove('is-invalid');

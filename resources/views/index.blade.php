@@ -4,6 +4,10 @@
     <link rel="stylesheet" href="/css/home/home.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <style>
+        #infoModal .modal-header{
+            background-color: #DA2E38;
+            color: #ffffff;
+        }
         .swiper {
             width: 100% !important;
             max-width: 100%;
@@ -93,6 +97,26 @@
 @endsection
 
 @section('content')
+    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="infoModalLabel">Aviso Importante</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    Prezado(a) autor(a),<br><br>
+                    Informamos que a nossa plataforma passou por uma atualização no fluxo de processamento de trabalhos.<br><br>
+                    Caso você tenha pendências ou correções a realizar em sua submissão, solicitamos que <strong>acesse a opção de correção e reenvie seu trabalho</strong>.<br><br>
+                    Com a nova atualização, assim que o envio da correção for concluído, <strong>o trabalho será aprovado automaticamente e a Carta de Aceite será gerada e enviada de imediato</strong> para o seu e-mail cadastrado.<br><br>
+                    Agradecemos pela compreensão e colaboração. Em caso de dúvidas, estamos à disposição.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
     @if($eventos_destaques->isNotEmpty())
         <div class="container d-flex flex-column pb-5">
             <div class="container d-flex align-items-center mb-3 position-relative">
@@ -114,7 +138,7 @@
                             <img src="{{ Storage::url($evento->fotoEvento) }}" alt="Foto do evento">
                             <div class="carousel-caption">
                                 <a href="{{ route('evento.visualizar', ['id' => $evento->id]) }}">
-                                    <h1 class="text-start mb-4">{{ __('13º Congresso Brasileiro de Agroecologia: inscrições e submissões de trabalhos') }}</h1>
+                                    <h1 class="text-start mb-4">{{ __('XV Congresso Brasileiro de Etnobiologia e Etnoecologia: inscrições e submissões de trabalhos') }}</h1>
                                 </a>
                                 <div class="caption-row">
                                     <p class="info mb-2">
@@ -192,7 +216,21 @@
         </div>
     @endif
 
+    <div class="bg-white">
+        <div class="container py-5 bg-white">
+            <img src="{{ asset('/img/Barra_revisada.png') }}" alt="Banner de Apoiadores" class="img-fluid rounded-3"/>
+        </div>
+    </div>
+
+
+
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+            infoModal.show();
+        });
+    </script>
     <script>
         const slideCount = {{ $eventos_destaques->count() }};
         new Swiper('.mySwiper', {

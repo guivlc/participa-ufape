@@ -7,12 +7,41 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Modalidade extends Model
 {
+    protected $casts = ['inicio_versao_final' => 'datetime', 'fim_versao_final' => 'datetime'];
+
+    public function versaoFinalHabilitada(): bool
+    {
+        return $this->inicio_versao_final !== null && $this->fim_versao_final !== null;
+    }
+
+    public function estaEmPeriodoDeVersaoFinal(): bool
+    {
+        $agora = now();
+        return $this->versaoFinalHabilitada()
+            && $agora->gte($this->inicio_versao_final) && $agora->lte($this->fim_versao_final);
+    }
+
+    public function avaliacaoHabilitada(): bool
+    {
+        return $this->inicioRevisao !== null && $this->fimRevisao !== null;
+    }
+
+    public function validacaoHabilitada(): bool
+    {
+        return $this->inicioValidacao !== null && $this->fimValidacao !== null;
+    }
+
+    public function correcaoHabilitada(): bool
+    {
+        return $this->inicioCorrecao !== null && $this->fimCorrecao !== null;
+    }
     /**
      * The attributes that are mass assignable.
      *
      * @var array
      */
     protected $fillable = [
+        'inicio_versao_final', 'fim_versao_final',
         'nome', 'inicioSubmissao', 'fimSubmissao', 'inicioRevisao', 'fimRevisao', 'inicioCorrecao', 'fimCorrecao', 'inicioValidacao', 'fimValidacao', 'inicioResultado',
         'eventoId', 'texto', 'arquivo', 'caracteres', 'mincaracteres',
         'maxcaracteres', 'palavras', 'minpalavras', 'maxpalavras',
@@ -83,6 +112,9 @@ class Modalidade extends Model
 
     public function estaEmPeriodoExtraDeCorrecao()
     {
+        if (!$this->correcaoHabilitada()) {
+            return false;
+        }
         $agora = now();
 
         return $this->datasExtrasComSubmissao()->where('inicio', '<=', $agora)->where('fim', '>=', $agora)->exists();
@@ -90,7 +122,7 @@ class Modalidade extends Model
 
     public function estaEmPeriodoDeCorrecao()
     {
-        return $this->inicioCorrecao <= now() && now() <= $this->fimCorrecao;
+        return $this->correcaoHabilitada() && $this->inicioCorrecao <= now() && now() <= $this->fimCorrecao;
     }
 
     public function getUltimaDataAttribute()
@@ -102,6 +134,10 @@ class Modalidade extends Model
         } else {
             return $this->inicioResultado;
         }
+    }
+
+    public function emPeriodoDeValidacao(){
+        return $this->validacaoHabilitada() && $this->inicioValidacao <= now() && now() <= $this->fimValidacao;
     }
 
     public function midiasExtra()

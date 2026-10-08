@@ -151,7 +151,7 @@
 
                                 {{-- <th scope="col">Avaliar</th> --}}
                                 <th scope="col" style="text-align:center">Avaliação do trabalho</th>
-                                <th scope="col" style="text-align:center">Validação das correções</th>
+                                {{-- <th scope="col" style="text-align:center">Validação das correções</th> --}}
                                 <th scope="col" style="text-align:center">Atribuído em</th>
                                 <th scope="col" style="text-align:center">Prazo</th>
                                 </tr>
@@ -159,7 +159,7 @@
                             @foreach($trabalhosDoRevisor as $trabalho)
                                 <tr>
                                     <td style="text-align:center">{{$trabalho->id}}</td>
-                                    <td style="text-align:center">{{$trabalho->titulo}}</td>
+                                    <td style="text-align:center">{{$trabalho->titulo}}<br>@include('trabalho.link-versao-final')</td>
                                     @if ($trabalho->avaliado(auth()->user())){{--avaliacao do revisor aqui--}}
                                         <td style="text-align:center">Avaliado</td>
                                     @else
@@ -246,19 +246,28 @@
                                             </td>
                                         </div>
                                     @endif
-                                        <td class="d-flex flex-column align-items-center">
-                                            @if ($trabalho->arquivoCorrecao()->exists())
-                                                <a href="{{route('downloadCorrecao', ['id' => $trabalho->id])}}"><img src="{{asset('img/icons/file-download-solid-black.svg')}}" style="width:20px"></a>
-
-
-                                                @if(!in_array($trabalho->avaliado, ['corrigido', 'corrigido_parcialmente', 'nao_corrigido']))
-                                                    <a type="button" data-bs-target="#validacaoCorrecaoModal{{$trabalho->id}}" data-bs-toggle="modal" class="btn btn-sm btn-primary mt-2">
-                                                        Fazer validação
+                                    {{--    <td>
+                                            <div class="d-flex flex-column align-items-center">
+                                                @if ($trabalho->arquivoCorrecao()->exists())
+                                                    <a href="{{ route('downloadCorrecao', ['id' => $trabalho->id]) }}" title="Baixar Arquivo Corrigido">
+                                                        <img src="{{ asset('img/icons/file-download-solid-black.svg') }}" style="width:20px">
                                                     </a>
                                                 @endif
 
-                                            @endif
-                                        </td>
+                                                @if ($trabalho->avaliado(auth()->user()) &&
+                                                    $trabalho->temCorrecaoSubmetida() && 
+                                                    !in_array($trabalho->avaliado, ['corrigido', 'corrigido_parcialmente', 'nao_corrigido']) && 
+                                                    $trabalho->modalidade->emPeriodoDeValidacao())
+                                                    <a type="button" data-bs-target="#validacaoCorrecaoModal{{ $trabalho->id }}" data-bs-toggle="modal" class="btn btn-sm btn-primary mt-2">
+                                                        Fazer validação
+                                                    </a>
+                                                @elseif(in_array($trabalho->avaliado, ['corrigido', 'corrigido_parcialmente', 'nao_corrigido']))
+                                                    <span class="badge bg-secondary mt-1">Validação Concluída</span>
+                                                @else
+                                                    <span class="text-muted small mt-1">-</span>
+                                                @endif
+                                            </div>
+                                        </td> --}}
                                         <td style="text-align:center">
                                             {{date('d/m/Y H:i',strtotime($trabalho->atribuicoes->first()->pivot->created_at))}}
                                         </td>
