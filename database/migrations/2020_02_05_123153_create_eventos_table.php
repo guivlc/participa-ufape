@@ -33,10 +33,10 @@ class CreateEventosTable extends Migration
             // $table->string('timezone')->default('America/Recife');
             $table->boolean('publicado')->default(false);
 
-            $table->integer('coord_comissao_cientifica_id')->nullable();
-            $table->integer('coord_comissao_organizadora_id')->nullable();
-            $table->integer('enderecoId')->nullable();
-            $table->integer('coordenadorId')->nullable();
+            $table->unsignedBigInteger('coord_comissao_cientifica_id')->nullable();
+            $table->unsignedBigInteger('coord_comissao_organizadora_id')->nullable();
+            $table->unsignedBigInteger('enderecoId')->nullable();
+            $table->unsignedBigInteger('coordenadorId')->nullable();
             $table->boolean('deletado')->nullable();
 
             $table->timestamps();
