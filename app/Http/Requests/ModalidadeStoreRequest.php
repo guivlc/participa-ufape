@@ -3,17 +3,12 @@
 namespace App\Http\Requests;
 
 use App\Models\Submissao\Evento;
-use App\Services\EtapasModalidadeService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\ValidationException;
 
 class ModalidadeStoreRequest extends FormRequest
 {
-    protected function prepareForValidation()
-    {
-        app(EtapasModalidadeService::class)->normalizar($this);
-    }
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -45,7 +40,7 @@ class ModalidadeStoreRequest extends FormRequest
             'fimRevisao' => ['nullable', 'date', 'after:inicioRevisao'],
             'inicioCorrecao' => ['nullable', 'date', 'after:fimRevisao', 'required_with:fimCorrecao'],
             'fimCorrecao' => ['nullable', 'date', 'after:inicioCorrecao', 'required_with:inicioCorrecao'],
-            'inicioValidacao' => ['nullable', 'date', 'required_with:fimValidacao'],
+            'inicioValidacao' => ['nullable', 'date', 'after:fimCorrecao', 'required_with:fimValidacao'],
             'fimValidacao' => ['nullable', 'date', 'after:inicioValidacao', 'required_with:inicioValidacao'],
             'inicioResultado' => ['required', 'date', 'after:fimSubmissao'],
             'texto' => ['nullable'],
@@ -91,30 +86,10 @@ class ModalidadeStoreRequest extends FormRequest
             'numMaxCoautores' => ['nullable', 'integer', 'min:0'],
         ];
 
-        $rules['habilitar_avaliacao'] = ['required', 'boolean'];
-        $rules['habilitar_versao_final'] = ['required', 'boolean'];
-        $rules['inicio_versao_final'] = [$this->boolean('habilitar_versao_final') ? 'required' : 'nullable', 'date'];
-        $rules['fim_versao_final'] = [$this->boolean('habilitar_versao_final') ? 'required' : 'nullable', 'date', 'after:inicio_versao_final'];
-        $rules['habilitar_validacao'] = ['required', 'boolean'];
-        $rules['inicioValidacao'] = [$this->boolean('habilitar_validacao') ? 'required' : 'nullable', 'date'];
-        $rules['fimValidacao'] = [$this->boolean('habilitar_validacao') ? 'required' : 'nullable', 'date', 'after:inicioValidacao'];
-        if (!$this->boolean('habilitar_avaliacao')) {
-            $rules['inicioRevisao'] = ['nullable'];
-            $rules['fimRevisao'] = ['nullable'];
-            $rules['inicioCorrecao'] = ['nullable', 'date', 'required_with:fimCorrecao'];
-        } elseif(request()->boolean('avaliacaoDuranteSubmissao')){
+        if(request()->has('avaliacaoDuranteSubmissao') && request()->boolean('avaliacaoDuranteSubmissao')){
             $rules['inicioRevisao'] = ['required', 'date', 'after_or_equal:inicioSubmissao'];
         }else{
             $rules['inicioRevisao'] = ['required', 'date', 'after:fimSubmissao'];
-        }
-        if ($this->boolean('habilitar_avaliacao')) {
-            $rules['fimRevisao'] = ['required', 'date', 'after:inicioRevisao'];
-        }
-        $rules['habilitar_correcao'] = ['required', 'boolean'];
-        $rules['inicioCorrecao'] = [$this->boolean('habilitar_correcao') ? 'required' : 'nullable', 'date'];
-        $rules['fimCorrecao'] = [$this->boolean('habilitar_correcao') ? 'required' : 'nullable', 'date', 'after:inicioCorrecao'];
-        if ($this->boolean('habilitar_correcao') && $this->boolean('habilitar_avaliacao')) {
-            $rules['inicioCorrecao'][] = 'after:fimRevisao';
         }
 
         return $rules;

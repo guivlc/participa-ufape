@@ -186,7 +186,4 @@ return [
         'PDF' => Barryvdh\DomPDF\Facade\Pdf::class,
     ])->toArray(),
 
-    'api_key' => env('API_KEY'),
-
-
 ];

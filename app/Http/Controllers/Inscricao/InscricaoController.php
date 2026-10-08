@@ -18,18 +18,11 @@ use App\Notifications\InscricaoAprovada;
 use App\Notifications\InscricaoEvento;
 use App\Notifications\PreInscricao;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Users\User;
 use App\Models\Users\Administrador;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Jobs\ProcessarInscricaoAutomaticaJob;
-use Illuminate\Support\Facades\Cache;
-use Maatwebsite\Excel\Facades\Excel;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class InscricaoController extends Controller
 {
@@ -262,18 +255,11 @@ class InscricaoController extends Controller
             return $this->cadastrarInscricaoRetornarProEvento($evento, $request, $categoria);
         }
 
-        $valorDaInscricao = $categoria->valor_total;
+        $valorDaInscricao = $request->valorTotal;
         $promocao = null;
         $atividades = null;
         $valorComDesconto = null;
         $cupom = null;
-
-        if (auth()->user()->ehAssociado() && $categoria->porcentagem_desconto_associado > 0) {
-            $desconto = ($valorDaInscricao * $categoria->porcentagem_desconto_associado) / 100;
-            $valorDaInscricao = $valorDaInscricao - $desconto;
-            
-            $request->merge(['valorTotal' => $valorDaInscricao]);
-        }
 
         if ($request->revisandoInscricao != null) {
             $inscricao = Inscricao::find($request->revisandoInscricao);
@@ -635,9 +621,9 @@ class InscricaoController extends Controller
         return abort(403);
     }
 
-    public function inscreverParticipante(Request $request, $evento_id)
+    public function inscreverParticipante(Request $request)
     {
-        $evento = Evento::find($evento_id);
+        $evento = Evento::find($request->evento_id);
 
         $this->authorize('isCoordenadorOrCoordenadorDaComissaoOrganizadora', $evento);
 
@@ -662,12 +648,10 @@ class InscricaoController extends Controller
             return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))->with(['error_message' => 'Participante informado não possui cadastrado no sistema!']);
         }
 
-        if (Inscricao::where('user_id', $participante->id)->where('evento_id', $evento->id)->where('finalizada', true)->exists())
+        if (Inscricao::where('user_id', $participante->id)->where('evento_id', $evento->id)->exists())
         {
             return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))->with(['error_message' => 'Participante informado já está inscrito neste evento!']);
         }
-
-        $preInscricaoCancelada = $this->cancelarPreInscricao($participante->id, $evento->id);
 
         $categoria = CategoriaParticipante::find($request->categoria);
 
@@ -728,7 +712,6 @@ class InscricaoController extends Controller
 
         $sucessos = 0;
         $erros = [];
-        $preInscricoesCanceladas = 0;
         $possuiFormulario = $evento->possuiFormularioDeInscricao();
 
         foreach ($participantes as $index => $dadosParticipante) {
@@ -760,14 +743,9 @@ class InscricaoController extends Controller
                     continue;
                 }
 
-                if (Inscricao::where('user_id', $participante->id)->where('evento_id', $evento->id)->where('finalizada', true)->exists()) {
+                if (Inscricao::where('user_id', $participante->id)->where('evento_id', $evento->id)->exists()) {
                     $erros[] = "Participante " . ($index + 1) . " ({$participante->name}): Já está inscrito neste evento";
                     continue;
-                }
-
-                $preInscricaoCancelada = $this->cancelarPreInscricao($participante->id, $evento->id);
-                if ($preInscricaoCancelada) {
-                    $preInscricoesCanceladas++;
                 }
 
                 $categoria = CategoriaParticipante::find($dadosParticipante['categoria']);
@@ -815,9 +793,6 @@ class InscricaoController extends Controller
         if ($sucessos > 0) {
             $mensagem .= "{$sucessos} participante(s) inscrito(s) com sucesso! ";
         }
-        if ($preInscricoesCanceladas > 0) {
-            $mensagem .= "{$preInscricoesCanceladas} pré-inscrição(ões) cancelada(s) automaticamente. ";
-        }
         if (!empty($erros)) {
             $mensagem .= "Erros: " . implode('; ', $erros);
         }
@@ -825,21 +800,6 @@ class InscricaoController extends Controller
         $tipoMensagem = !empty($erros) ? 'error_message' : 'message';
 
         return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))->with([$tipoMensagem => $mensagem]);
-    }
-
-    private function cancelarPreInscricao($user_id, $evento_id)
-    {
-        $preInscricao = Inscricao::where('user_id', $user_id)
-                                 ->where('evento_id', $evento_id)
-                                 ->where('finalizada', false)
-                                 ->first();
-
-        if ($preInscricao) {
-            $this->destroy($preInscricao->id);
-            return true;
-        }
-
-        return false;
     }
 
     public function alterarCategoria(Request $request, Inscricao $inscricao)
@@ -858,13 +818,6 @@ class InscricaoController extends Controller
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
-        }
-
-        if ($inscricao->pagamento && $inscricao->pagamento->status !== 'approved') {
-            $pagamentoAntigo = $inscricao->pagamento;
-            $inscricao->pagamento_id = null;
-            $inscricao->save();
-            $pagamentoAntigo->delete();
         }
 
         $inscricao->categoria_participante_id = $request->categoria;
@@ -895,51 +848,39 @@ class InscricaoController extends Controller
 
     public function recibo(Inscricao $inscricao)
     {
-        try {
-            if (! $inscricao->finalizada) {
-                return redirect()->back()->with(['error_message' => 'Recibo disponível apenas para inscrições finalizadas.']);
-            }
+        try{
 
-            if (!$inscricao->codigo_validacao) {
-                $inscricao->codigo_validacao = $this->gerarCodigoValidacaoUnico();
-                $inscricao->save();
-            }
 
-            // Calcula o valor correto considerando se é associado e tem desconto
-            $valorFinal = 0;
-            if ($inscricao->categoria) {
-                $valorFinal = $inscricao->categoria->valor_total;
-                
-                // Verifica se o usuário é associado e se a categoria tem desconto para associado
-                if ($inscricao->user && method_exists($inscricao->user, 'ehAssociado') && 
-                    $inscricao->user->ehAssociado() && 
-                    $inscricao->categoria->porcentagem_desconto_associado > 0) {
-                    
-                    $desconto = ($valorFinal * $inscricao->categoria->porcentagem_desconto_associado) / 100;
-                    $valorFinal = $valorFinal - $desconto;
-                }
-            }
-
-            $data = [
-                'nome' => $inscricao->user->name,
-                'valor' => $valorFinal,
-                'data' => now(),
-                'codigo_validacao' => $inscricao->codigo_validacao,
-            ];
-
-            $pdf = Pdf::loadView('inscricao.recibo_pdf', $data)
-                ->setPaper('a4', 'portrait');
-
-            return $pdf->download("recibo-{$inscricao->id}.pdf");
-
-        } catch (\Throwable $e) {
-            \Log::error('Erro ao gerar recibo', [
-                'inscricao_id' => $inscricao->id ?? null,
-                'exception' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return redirect()->back()->with(['error_message' => 'Erro ao gerar recibo.']);
+        if (! $inscricao->finalizada) {
+            return redirect()->back()->with(['error_message' => 'Recibo disponível apenas para inscrições finalizadas.']);
         }
+
+        if (!$inscricao->codigo_validacao) {
+            $inscricao->codigo_validacao = $this->gerarCodigoValidacaoUnico();
+            $inscricao->save();
+
+        }
+
+        $data = [
+            'nome' => $inscricao->user->name,
+            'valor' => $inscricao->pagamento ? $inscricao->pagamento->valor : 0,
+            'data' => now(),
+            'codigo_validacao' => $inscricao->codigo_validacao,
+        ];
+
+
+        $pdf = Pdf::loadView('inscricao.recibo_pdf', $data)
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download("recibo-{$inscricao->id}.pdf");
+    } catch (\Throwable $e) {
+        \Log::error('Erro ao gerar recibo', [
+            'inscricao_id' => $inscricao->id ?? null,
+            'exception' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+        return redirect()->back()->with(['error_message' => 'Erro ao gerar recibo.']);
+    }
     }
 
     private function gerarCodigoValidacaoUnico(): string
@@ -949,404 +890,6 @@ class InscricaoController extends Controller
         } while (Inscricao::where('codigo_validacao', $codigo)->exists());
 
         return $codigo;
-    }
-
-    public function inscricaoAutomaticaIndex(Request $request)
-    {
-        $eventoId = $request->get('evento_id');
-        $evento = Evento::find($eventoId);
-
-        if (! (Gate::allows('isCoordenadorOrCoordenadorDaComissaoCientifica', $evento) ||
-               Gate::allows('isAdmin', \App\Models\Users\Administrador::class))) {
-            abort(403, 'Acesso negado');
-        }
-
-        $categorias = CategoriaParticipante::where('evento_id', $evento->id)->get();
-
-        return view('coordenador.inscricoes.inscricao-automatica', compact('evento', 'categorias'));
-    }
-
-    public function inscricaoAutomaticaProcessar(Request $request)
-    {
-        $request->validate([
-            'arquivo' => 'required|file|mimes:xlsx,xls|max:10240', //10mb
-            'evento_id' => 'required|exists:eventos,id',
-            'categoria_id' => 'required|exists:categoria_participantes,id',
-        ]);
-
-        try {
-            $evento = Evento::find($request->evento_id);
-            $categoria = CategoriaParticipante::find($request->categoria_id);
-
-            $this->authorize('isCoordenadorOrCoordenadorDaComissaoOrganizadora', $evento);
-
-            $arquivo = $request->file('arquivo');
-            $caminhoArquivo = $arquivo->store('temp');
-            $caminhoCompleto = storage_path('app/' . $caminhoArquivo);
-
-            // ler a planilha
-            $spreadsheet = IOFactory::load($caminhoCompleto);
-            $worksheet = $spreadsheet->getActiveSheet();
-            $dados = $worksheet->toArray();
-
-            $cabecalho = array_shift($dados);
-
-            $dados = array_filter($dados, function($linha) {
-                return !empty($linha[0]) && (!empty($linha[1]) || !empty($linha[2]));
-            });
-
-            $jobId = uniqid('inscricao_', true);
-
-            ProcessarInscricaoAutomaticaJob::dispatch($dados, $evento->id, $categoria->id, $jobId);
-
-            \Log::info("Job despachado com ID: {$jobId}, Total de dados: " . count($dados));
-
-            Storage::delete($caminhoArquivo);
-
-            return redirect()->route('inscricao-automatica.progresso', ['job_id' => $jobId])
-                ->with('success', 'Processamento iniciado! Acompanhe o progresso abaixo.');
-
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Erro ao processar arquivo: ' . $e->getMessage());
-        }
-    }
-
-    private function gerarPlanilhaResultado($usuariosNaoCadastrados, $usuariosJaInscritos, $usuariosInscritosComSucesso, $erros)
-    {
-        $spreadsheet = new Spreadsheet();
-        $worksheet = $spreadsheet->getActiveSheet();
-
-        $worksheet->setCellValue('A1', 'Nome');
-        $worksheet->setCellValue('B1', 'CPF');
-        $worksheet->setCellValue('C1', 'Email');
-        $worksheet->setCellValue('D1', 'Status');
-
-        $linha = 2;
-
-        foreach ($usuariosNaoCadastrados as $usuario) {
-            $worksheet->setCellValue('A' . $linha, $usuario['nome']);
-            $worksheet->setCellValue('B' . $linha, $usuario['cpf']);
-            $worksheet->setCellValue('C' . $linha, $usuario['email']);
-            $worksheet->setCellValue('D' . $linha, $usuario['status']);
-            $linha++;
-        }
-
-        foreach ($usuariosJaInscritos as $usuario) {
-            $worksheet->setCellValue('A' . $linha, $usuario['nome']);
-            $worksheet->setCellValue('B' . $linha, $usuario['cpf']);
-            $worksheet->setCellValue('C' . $linha, $usuario['email']);
-            $worksheet->setCellValue('D' . $linha, $usuario['status']);
-            $linha++;
-        }
-
-        foreach ($usuariosInscritosComSucesso as $usuario) {
-            $worksheet->setCellValue('A' . $linha, $usuario['nome']);
-            $worksheet->setCellValue('B' . $linha, $usuario['cpf']);
-            $worksheet->setCellValue('C' . $linha, $usuario['email']);
-            $worksheet->setCellValue('D' . $linha, $usuario['status']);
-            $linha++;
-        }
-
-        foreach ($erros as $erro) {
-            $worksheet->setCellValue('A' . $linha, $erro['nome']);
-            $worksheet->setCellValue('B' . $linha, $erro['cpf']);
-            $worksheet->setCellValue('C' . $linha, $erro['email']);
-            $worksheet->setCellValue('D' . $linha, $erro['status']);
-            $linha++;
-        }
-
-        // Salvar arquivo temporário
-        $caminhoArquivo = storage_path('app/temp/resultado_inscricao_' . time() . '.xlsx');
-        $writer = new Xlsx($spreadsheet);
-        $writer->save($caminhoArquivo);
-
-        return $caminhoArquivo;
-    }
-
-    public function inscricaoAutomaticaProgresso(Request $request)
-    {
-        $jobId = $request->get('job_id');
-
-        if (!$jobId) {
-            return redirect()->route('inscricao-automatica.index')
-                ->with('error', 'ID do processamento não encontrado.');
-        }
-
-        return view('coordenador.inscricoes.inscricao-automatica-progresso', compact('jobId'));
-    }
-
-    public function inscricaoAutomaticaStatusProgresso(Request $request)
-    {
-        $jobId = $request->get('job_id');
-
-        $progresso = Cache::get("inscricao_progress_{$jobId}");
-        $completado = Cache::get("inscricao_completed_{$jobId}");
-
-        \Log::info("Status request para job {$jobId}: progresso=" . ($progresso ? 'encontrado' : 'não encontrado') . ", completado=" . ($completado ? 'sim' : 'não'));
-
-        if ($completado) {
-            return response()->json([
-                'completado' => true,
-                'progresso' => 100,
-                'dados' => $progresso
-            ]);
-        }
-
-        if ($progresso) {
-            return response()->json([
-                'completado' => false,
-                'progresso' => $progresso['progresso'] ?? 0,
-                'processados' => $progresso['processados'] ?? 0,
-                'total' => $progresso['total'] ?? 0
-            ]);
-        }
-
-        return response()->json([
-            'completado' => false,
-            'progresso' => 0,
-            'processados' => 0,
-            'total' => 0
-        ]);
-    }
-
-    public function inscricaoAutomaticaDownloadResultado(Request $request)
-    {
-        $jobId = $request->get('job_id');
-
-        $dados = Cache::get("inscricao_progress_{$jobId}");
-
-        if (!$dados) {
-            return redirect()->route('inscricao-automatica.index')
-                ->with('error', 'Dados do processamento não encontrados.');
-        }
-
-        $planilhaResultado = $this->gerarPlanilhaResultado(
-            $dados['usuariosNaoCadastrados'] ?? [],
-            $dados['usuariosJaInscritos'] ?? [],
-            $dados['usuariosInscritosComSucesso'] ?? [],
-            $dados['erros'] ?? []
-        );
-
-        // Limpar cache
-        Cache::forget("inscricao_progress_{$jobId}");
-        Cache::forget("inscricao_completed_{$jobId}");
-
-        return response()->download($planilhaResultado, 'resultado_inscricao_automatica.xlsx')
-            ->deleteFileAfterSend(true);
-    }
-
-    public function gerenciarAlimentacao(Request $request, $evento_id)
-    {
-        $evento = Evento::find($evento_id);
-        $this->authorize('isCoordenadorOrCoordenadorDaComissaoOrganizadora', $evento);
-
-        $identificador = $request->identificador;
-        $email = $request->email;
-        $cpf = $request->cpf;
-
-        if (empty($email) && empty($cpf)) {
-            return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))
-                ->with(['error_message' => 'E-mail ou CPF é obrigatório.']);
-        }
-
-        try {
-            $participante = null;
-            if ($identificador === 'email' && !empty($email)) {
-                $participante = User::where('email', $email)->first();
-            } elseif ($identificador === 'cpf' && !empty($cpf)) {
-                $participante = User::where('cpf', $cpf)->first();
-            } else {
-                if (!empty($email)) {
-                    $participante = User::where('email', $email)->first();
-                } elseif (!empty($cpf)) {
-                    $participante = User::where('cpf', $cpf)->first();
-                }
-            }
-
-            if (!$participante) {
-                return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))
-                    ->with(['error_message' => 'Usuário não encontrado no sistema.']);
-            }
-
-            $inscricao = Inscricao::where('user_id', $participante->id)
-                ->where('evento_id', $evento->id)
-                ->where('finalizada', true)
-                ->first();
-
-            if (!$inscricao) {
-                return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))
-                    ->with(['error_message' => "O participante {$participante->name} não está inscrito neste evento."]);
-            }
-
-            if ($inscricao->alimentacao) {
-                return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))
-                    ->with(['error_message' => "O participante {$participante->name} já possui alimentação cadastrada."]);
-            }
-
-            $inscricao->alimentacao = true;
-            $inscricao->save();
-
-            return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))
-                ->with(['message' => "Alimentação adicionada com sucesso para {$participante->name}."]);
-
-        } catch (\Exception $e) {
-            return redirect(route('inscricao.inscritos', ['evento' => $evento->id]))
-                ->with(['error_message' => 'Erro ao processar: ' . $e->getMessage()]);
-        }
-    }
-
-
-    function processarRelatorioInscricoesJSON(Request $request)
-    {
-
-        $evento_id = $request->integer('evento_id') ?: null;
-        $arquivo  = $request->file('arquivo');
-
-        $sheet = Excel::toCollection(null, $arquivo)->first();
-
-        $linhas = $sheet->skip(1)->map(function ($row) {
-            $nome        = $row['nome']        ?? $row[0] ?? null;
-            $cpf         = $row['cpf']          ?? $row[1] ?? null;
-            $email       = $row['email']       ?? $row[2] ?? null;
-            $alimentacao = $row['alimentacao'] ?? $row[3] ?? null;
-
-            $cpfNormalizado = $cpf ? $this->normalizarCpf($cpf) : null;
-
-            $emailNormalizado = $email ? mb_strtolower(trim($email)) : null;
-
-
-            return [
-                'nome'        => trim((string) $nome),
-                'cpf'         => $cpfNormalizado,
-                'email'       => $emailNormalizado,
-                'alimentacao' => $alimentacao,
-            ];
-        })->filter(fn ($l) => $l['cpf'] || $l['email'])->values();
-
-        $cpfs = $linhas->pluck('cpf')->filter()->unique()->values();
-        $emails = $linhas->pluck('email')->filter()->unique()->values();
-
-        $users = collect();
-
-        if ($cpfs->isNotEmpty()) {
-            $usersCpf = User::query()
-                ->whereIn('cpf', $cpfs)
-                ->get(['id', 'cpf', 'email']);
-            $users = $users->merge($usersCpf);
-        }
-
-        if ($emails->isNotEmpty()) {
-            $usersEmail = User::query()
-                ->whereIn('email', $emails)
-                ->get(['id', 'cpf', 'email']);
-            $users = $users->merge($usersEmail);
-
-            $usersEmailLike = User::query()
-                ->where(function($q) use ($emails) {
-                    foreach ($emails as $email) {
-                        $q->orWhere('email', 'ILIKE', $email);
-                    }
-                })
-                ->get(['id', 'cpf', 'email']);
-            $users = $users->merge($usersEmailLike);
-        }
-
-        $users = $users->unique('id');
-
-        if ($users->isNotEmpty()) {
-            $userIds = $users->pluck('id');
-
-            $users = User::query()
-                ->whereIn('id', $userIds)
-                ->withExists([
-                    'inscricaos as tem_inscricao_confirmada' => function ($q) use ($evento_id) {
-                        $q->when($evento_id, fn ($q) => $q->where('evento_id', $evento_id))
-                        ->where('finalizada', true);
-                    },
-                ])
-                ->addSelect([
-                    'alimentacao' => Inscricao::select('alimentacao')
-                        ->whereColumn('user_id', 'users.id')
-                        ->when($evento_id, fn ($q) => $q->where('evento_id', $evento_id))
-                        ->where('finalizada', true)
-                        ->latest('created_at')
-                        ->limit(1),
-                ])
-                ->get(['id', 'cpf', 'email']);
-        } else {
-            $users = collect();
-        }
-
-
-        $mapaUsuarios = collect();
-        foreach ($users as $user) {
-            if ($user->cpf) {
-                $mapaUsuarios->put($user->cpf, $user);
-            }
-            if ($user->email) {
-                $mapaUsuarios->put($user->email, $user);
-            }
-        }
-
-        $encontrados = collect();
-        $naoEncontrados = collect();
-
-        foreach ($linhas as $linha) {
-            $u = null;
-
-            if ($linha['cpf'] && $mapaUsuarios->has($linha['cpf'])) {
-                $u = $mapaUsuarios->get($linha['cpf']);
-            }
-            elseif ($linha['email'] && $mapaUsuarios->has($linha['email'])) {
-                $u = $mapaUsuarios->get($linha['email']);
-            }
-
-            if ($u) {
-                $encontrados->push([
-                    'nome'            => $linha['nome'],
-                    'cpf'             => $linha['cpf'],
-                    'email'           => $linha['email'],
-                    'alimentacao'     => (bool) ($u->alimentacao),
-                    'usuario_existe'  => true,
-                    'inscricao'       => (bool) ($u->tem_inscricao_confirmada ?? false)
-                ]);
-            } else {
-                $naoEncontrados->push([
-                    'nome'            => $linha['nome'],
-                    'cpf'             => $linha['cpf'],
-                    'email'           => $linha['email'],
-                    'alimentacao'     => false,
-                    'usuario_existe'  => false,
-                    'inscricao'       => false,
-                ]);
-            }
-        }
-
-        return response()->json([
-            'encontrados'     => $encontrados->values(),
-            'nao_encontrados' => $naoEncontrados->values(),
-            'total'           => [
-                'encontrados'     => $encontrados->count(),
-                'nao_encontrados' => $naoEncontrados->count(),
-            ],
-        ]);
-    }
-
-    private function normalizarCpf($cpf)
-    {
-        $cpf = preg_replace('/[^0-9]/', '', $cpf);
-        if (strlen($cpf) < 11) {
-            $cpf = str_pad($cpf, 11, '0', STR_PAD_LEFT);
-        }
-        if (strlen($cpf) === 11) {
-            return substr($cpf, 0, 3) . '.' .
-                   substr($cpf, 3, 3) . '.' .
-                   substr($cpf, 6, 3) . '-' .
-                   substr($cpf, 9, 2);
-        }
-
-        return $cpf;
     }
 
 }

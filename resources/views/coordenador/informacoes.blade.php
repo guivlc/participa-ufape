@@ -135,9 +135,6 @@
                                 <th style="text-align:center">Arquivados</th>
                                 <th style="text-align:center">Avaliados</th>
                                 <th style="text-align:center">Pendentes</th>
-                                <th style="text-align:center">Corrigidos</th>
-                                <th style="text-align:center">Validados</th>
-                                <th style="text-align:center">Cartas Emitidas</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -147,9 +144,6 @@
                                 <td style="text-align:center"> {{$evento->arquivados_count}} </td>
                                 <td style="text-align:center"> {{$evento->avaliados_count}} </td>
                                 <td style="text-align:center"> {{$evento->pendentes_count}} </td>
-                                <td style="text-align:center"> {{ $evento->corrigidos_count }} </td>
-                                <td style="text-align:center"> {{ $evento->validados_count }} </td>
-                                <td style="text-align:center"> {{ $evento->cartas_emitidas_count }} </td>
                               </tr>
                             </tbody>
                           </table>
@@ -179,9 +173,6 @@
                                                 <th>Arquivados</th>
                                                 <th>Avaliados</th>
                                                 <th>Pendentes</th>
-                                                <th>Corrigidos</th>
-                                                <th>Validados</th>
-                                                <th>Cartas Emitidas</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -191,9 +182,6 @@
                                                 <td>{{$modalidade->arquivados_count}}</td>
                                                 <td>{{$modalidade->avaliados_count}}</td>
                                                 <td>{{$modalidade->pendentes_count}}</td>
-                                                <td>{{ $modalidade->corrigidos_count }}</td>
-                                                <td>{{ $modalidade->validados_count }}</td>
-                                                <td>{{ $modalidade->cartas_emitidas_count }}</td>
                                             </tr>
                                         </tbody>
                                     </table>

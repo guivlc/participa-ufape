@@ -3,59 +3,55 @@
 namespace App\Rules;
 
 use App\Models\Submissao\Trabalho;
+use App\Models\Users\Coautor;
 use App\Models\Users\User;
 use Illuminate\Contracts\Validation\Rule;
 
 class MaxTrabalhosCoautor implements Rule
 {
-    private $numMaxCoautores;
+    private $numCoautores;
+
     private $value;
 
-    public function __construct($numMaxCoautores)
+    /**
+     * Create a new rule instance.
+     *
+     * @return void
+     */
+    public function __construct($numCoautores)
     {
-        $this->numMaxCoautores = $numMaxCoautores;
+        $this->numCoautores = $numCoautores;
     }
 
+    /**
+     * Determine if the validation rule passes.
+     *
+     * @param  string  $attribute
+     * @param  mixed  $value
+     * @return bool
+     */
     public function passes($attribute, $value)
     {
-        if (is_null($this->numMaxCoautores) || $this->numMaxCoautores <= 0) {
-            return true;
-        }
-
-        if ($attribute === 'emailCoautor.0') {
-            return true;
-        }
-
-        if (empty($value)) {
-            return true;
-        }
-
         $user = User::where('email', $value)->first();
-
-        if (!$user) {
-            return true;
-        }
-
         $eventoId = request()->input('eventoId');
 
-        $qtdTrabalhosComoCoautor = Trabalho::where('eventoId', $eventoId)
-            ->where('status', '!=', 'arquivado')
-            ->where('autorId', '!=', $user->id)
-            ->whereHas('coautors', function ($query) use ($user) {
-                $query->where('autorId', $user->id);
-            })
-            ->count();
-
-        if ($qtdTrabalhosComoCoautor >= $this->numMaxCoautores) {
+        if ($user != null && $this->numCoautores != null && Coautor::where('autorId', $user->id)->first() != null) {
             $this->value = $value;
-            return false;
+            $qtd = Coautor::where('autorId', $user->id)->first()->trabalhos()->where('status', '!=', 'arquivado')->where('eventoId', $eventoId)->count();
+
+            return $qtd < $this->numCoautores;
         }
 
         return true;
     }
 
+    /**
+     * Get the validation error message.
+     *
+     * @return string
+     */
     public function message()
     {
-        return 'O coautor ' . $this->value . ' já atingiu o número máximo de trabalhos permitidos neste evento (' . $this->numMaxCoautores . ').';
+        return 'O coautor '.$this->value.', já atingiu o número máximo de trabalhos em que pode ser coautor.';
     }
 }

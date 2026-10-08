@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Validator;
@@ -26,7 +27,7 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
         Validator::extend('telefone', '\App\Utils\TelefoneValidation@validate', 'Celular inválido');
         Validator::extend('time', '\App\Utils\TimeValidation@validate', 'Hora inválida');
-
+        Schema::disableForeignKeyConstraints();
         $locale = Session::get('locale', config('app.fallback_locale'));
         App::setLocale($locale);
     }

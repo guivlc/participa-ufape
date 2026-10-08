@@ -9,17 +9,10 @@
         </div>
         <div class="row">
             <div class="col-sm-12">
-                                <div class="card">
+                <div class="card">
                     <div class="card-body">
-                      <div class="row justify-content-between">
-                        <div class="col-md-6">
-                          <h5 class="card-title">Comissão</h5>
-                          <h6 class="card-subtitle mb-2 text-muted">Usuários cadastrados na comissão do seu evento.</h6>
-                        </div>
-                        <div class="col-md-6 d-flex gap-2 flex-column align-items-end">
-                            <a href="{{ route('coord.evento.exportarComissaoCientifica', ['evento' => $evento->id]) }}" class="btn btn-success">Exportar XLSX</a>
-                        </div>
-                      </div>
+                      <h5 class="card-title">Comissão</h5>
+                      <h6 class="card-subtitle mb-2 text-muted">Usuários cadastrados na comissão do seu evento.</h6>
                       <p class="card-text">
                         <table class="table table-hover table-responsive-lg table-sm">
                             <thead>

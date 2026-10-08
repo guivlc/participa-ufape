@@ -20,9 +20,6 @@
                     <a class="btn btn-primary col-sm" href="{{ route('evento.downloadTrabalhos', $evento) }}">Exportar trabalhos .xlsx</a>
                 </div>
                 <div class="row mt-1">
-                    <a class="btn btn-primary col-sm" href="{{ route('evento.exportarRelatorioGeral', $evento) }}">Gerar Relatório (.xlsx)</a>
-                </div>
-                <div class="row mt-1">
                     <a class="btn btn-primary col-sm" href="{{ route('evento.downloadTrabalhosAprovadosPDF', $evento) }}">
                         Lista de Trabalhos Aprovados (PDF)
                     </a>
@@ -107,16 +104,11 @@
                                                 @endif
                                                 <th>Avaliadores</th>
                                                 <th>Avaliações</th>
-                                                <th>Apresentado</th>
                                                 <th>Data</th>
                                                 <th>Atribuir</th>
                                                 @can('isCoordenadorOrCoordenadorDaComissaoCientifica', $evento)
                                                     <th>Arquivar</th>
-                                                    @if ($status == 'rascunho')
-                                                        <th style="display: none;">Excluir</th>
-                                                    @else
-                                                        <th>Excluir</th>
-                                                    @endif
+                                                    <th>Excluir</th>
                                                 @endcan
                                                 <th>Editar</th>
                                             </tr>
@@ -131,7 +123,6 @@
                                                         @else
                                                             {{ $trabalho->titulo }}
                                                         @endif
-                                                        <div>@include('trabalho.link-versao-final')</div>
                                                     </td>
                                                     <td>{{ $trabalho->area->nome }}</td>
                                                     <td>{{ $trabalho->autor->name }}</td>
@@ -149,13 +140,6 @@
                                                     @endif
                                                     <td>{{ $trabalho->atribuicoes_count }}</td>
                                                     <td>{{ $trabalho->quantidade_avaliacoes }}</td>
-                                                    <td>
-                                                        @if($trabalho->apresentado)
-                                                            <span class="badge bg-success">Sim</span>
-                                                        @else
-                                                            <span class="badge bg-secondary">Não</span>
-                                                        @endif
-                                                    </td>
                                                     <td>{{ $trabalho->created_at?->format('d/m/Y H:i') }}</td>
                                                     <td style="text-align:center">
                                                         <livewire:buttons.ver-trabalho-btn
@@ -172,11 +156,11 @@
                                                                 <a href="{{ route('trabalho.status', [$trabalho->id, 'arquivado']) }}" title="Arquivar"><img src="{{ asset('img/icons/archive.png') }}" width="20" alt="Arquivar"></a>
                                                             @endif
                                                         </td>
-                                                        @if ($trabalho->status == 'arquivado')
                                                             <td style="text-align:center">
+                                                                @if ($trabalho->status == 'arquivado')
                                                                     <a href="#" data-bs-toggle="modal" data-bs-target="#modalExcluirTrabalho_{{ $trabalho->id }}"><img src="{{ asset('img/icons/lixo.png') }}" width="20" alt="Excluir"></a>
+                                                                @endif
                                                             </td>
-                                                        @endif
                                                     @endcan
                                                         <td style="text-align:center">
                                                             <a href="{{ route('coord.trabalho.edit', ['id' => $trabalho->id]) }}"><img src="{{ asset('img/icons/edit-regular.svg') }}" width="20" alt="Editar"></a>

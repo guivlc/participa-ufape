@@ -19,7 +19,6 @@ use App\Http\Controllers\Inscricao\CheckoutController;
 use App\Http\Controllers\Inscricao\InscricaoController;
 use App\Http\Controllers\Inscricao\PromocaoController;
 use App\Http\Controllers\Inscricao\InscricaoPCDController;
-use App\Http\Controllers\PlanilhaAlimentacaoController;
 use App\Http\Controllers\Submissao\AreaController;
 use App\Http\Controllers\Submissao\CandidatoAvaliadorController;
 use App\Http\Controllers\Submissao\ArquivoInfoController;
@@ -38,7 +37,6 @@ use App\Http\Controllers\Submissao\PalestranteController;
 use App\Http\Controllers\Submissao\TipoAtividadeController;
 use App\Http\Controllers\Submissao\TipoComissaoController;
 use App\Http\Controllers\Submissao\TrabalhoController;
-use App\Http\Controllers\Submissao\VersaoFinalController;
 use App\Http\Controllers\Users\AdministradorController;
 use App\Http\Controllers\Users\CoautorController;
 use App\Http\Controllers\Users\ComissaoController;
@@ -49,7 +47,6 @@ use App\Http\Controllers\Users\CoordEventoController;
 use App\Http\Controllers\Users\MembroComissaoController;
 use App\Http\Controllers\Users\RevisorController;
 use App\Http\Controllers\Users\UserController;
-use App\Http\Controllers\Users\CadastroUsuarioAutomaticaController;
 use App\Http\Middleware\SetLocale;
 use App\Models\Submissao\Evento;
 use Illuminate\Support\Facades\Auth;
@@ -92,7 +89,6 @@ Route::view('/termos-de-uso', 'termosdeuso')->name('termos.de.uso');
 Route::view('/aviso-de-privacidade', 'avisodeprivacidade')->name('aviso.de.privacidade');
 Route::get('/evento/busca', [EventoController::class, 'buscaLivre'])->name('busca.eventos');
 Route::get('/evento/buscar-livre', [EventoController::class, 'buscaLivreAjax'])->name('busca.livre.ajax');
-Route::get('certificados/{certificadoId}/ver-destinatario/{destinatarioId}/trabalho/{trabalhoId}', [CertificadoController::class, 'visualizar_certificado_emitido'])->name('verCertificado');
 
 Auth::routes(['verify' => true, 'register' => false]);
 
@@ -110,24 +106,7 @@ Auth::routes(['verify' => true, 'register' => false]);
                 return view('auth.register', compact('pais'));
             });
             Route::post('/register', [RegisterController::class, 'register'])->name('register');
-            Route::get('/admin/cadastrar-usuario', function ($locale) {
-                return view('administrador.cadastrarUsuario');
-            })->name('admin.cadastrarUsuario');
             Route::post('/criarUsuario', [AdministradorController::class, 'criarUsuario'])->name('administrador.criarUsuario');
-            Route::view('/sobre-o-cbee', 'sobre.cbee')->name('sobre.cbee');
-            Route::view('/sobre-o-sbee', 'sobre.sbee')->name('sobre.sbee');
-            Route::view('/associe-se', 'associe-se')->name('associe-se');
-            Route::view('/informacoes-uteis', 'informacoes-uteis')->name('informacoes.uteis');
-            Route::view('/cronograma', 'cronograma')->name('cronograma');
-            Route::view('/programacao-geral', 'programacao.programacao-geral')->name('programacao.geral');
-            Route::view('/feira', 'programacao.feira')->name('programacao.feira');
-            Route::view('/mostra-audiovisual', 'programacao.mostra')->name('programacao.mostra');
-            Route::view('/premiacoes', 'premiacoes')->name('premiacoes');
-            Route::view('/normas', 'normas')->name('normas');
-            Route::view('/noticias', 'noticias')->name('noticias');
-            Route::view('/premio-etnocienciacao', 'premio_etnocienciacao')->name('premio.etnocienciacao');
-            Route::view('/sugestao-hospedagem', 'sugestao-hospedagem')->name('sugestao.hospedagem');
-            Route::view('/hospedagem-solidaria', 'hospedagem-solidaria')->name('hospedagem.solidaria');
         });
 
 
@@ -137,15 +116,12 @@ Route::namespace('Submissao')->group(function () {
     Route::get('/evento/visualizar/{id}', function ($id) {
         return redirect()->route('evento.visualizar', $id);
     });
-    Route::match(['get', 'post'], '/validarDocumentos', [CertificadoController::class, 'validar'])->name('validarCertificado'); 
-    Route::get('certificado/{hash}', [CertificadoController::class, 'validar'])->name('certificado.view')->where('hash', '.*');
-    Route::get('certificados/{user_id}/{evento_id}', [CertificadoController::class, 'certificadosDisponiveis'])->name('certificado.disponiveis');
+    Route::get('certificado/{hash}', [CertificadoController::class, 'verificar'])->name('certificado.view')->where('hash', '.*');;
+    Route::view('/validarDocumentos', 'validar')->name('validarCertificado')->middleware('block.get.params');
     Route::post('validarDocumentos', [CertificadoController::class, 'validar'])->name('validarCertificadoPost');
     Route::get('/home', [CertificadoController::class, 'validar'])->name('home')->middleware('verified', 'isTemp');
-});
 
-Route::get('/validarDocumentos', [CertificadoController::class, 'validarCertificadoForm'])->name('validarCertificado');
-Route::get('/validar-documentos/carta-aceite/download/{codigo}', [CertificadoController::class, 'downloadCartaAceitePdf'])->name('cartaAceite.downloadPdf');
+});
 
 Route::get('/{id}/atividades', [AtividadeController::class, 'atividadesJson'])->name('atividades.json');
 
@@ -172,15 +148,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
             Route::post('/update/user/{id}', [AdministradorController::class, 'updateUser'])->name('updateUser');
             Route::delete('/delete/user/{user_id}', [UserController::class, 'destroy'])->name('user.destroy');
             Route::post('/delete/search', [AdministradorController::class, 'search'])->name('search');
-            Route::get('/cadastro-automatica', [CadastroUsuarioAutomaticaController::class, 'index'])->name('cadastro-automatica.index');
-            Route::post('/cadastro-automatica/processar', [CadastroUsuarioAutomaticaController::class, 'processar'])->name('cadastro-automatica.processar');
-
-            Route::view('/relatorio-inscricoes', 'administrador.confirmar_status_inscricao')->name('relatorio.form');
-
-            Route::post('/relatorio-inscricoes', [InscricaoController::class, 'processarRelatorioInscricoesJSON'])->name('relatorio.processar');
-
-            Route::get('/importar-associados', [AdministradorController::class, 'importarAssociadosForm'])->name('associados.form');
-            Route::post('/importar-associados', [AdministradorController::class, 'importarAssociados'])->name('associados.importar');
         });
         // rotas da Comissao Cientifica
         Route::get('comissao', [MembroComissaoController::class, 'index'])->name('home.membro');
@@ -190,14 +157,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
         Route::get('comissaoCientifica/areas', [CoordComissaoCientificaController::class, 'index'])->name('cientifica.areas');
         Route::post('comissaoCientifica/permissoes', [CoordComissaoCientificaController::class, 'permissoes'])->name('cientifica.permissoes');
         Route::post('comissaoCientifica/novoUsuario', [CoordComissaoCientificaController::class, 'novoUsuario'])->name('cientifica.novoUsuario');
-
-        // Rotas de cadastro de usuários para coordenadores e comissão científica
-        Route::get('/cadastro-automatica', [CadastroUsuarioAutomaticaController::class, 'index'])->name('cadastro-automatica.index');
-        Route::post('/cadastro-automatica/processar', [CadastroUsuarioAutomaticaController::class, 'processar'])->name('cadastro-automatica.processar');
-        Route::get('/admin/cadastrar-usuario', function () {
-            return view('administrador.cadastrarUsuario');
-        })->name('admin.cadastrarUsuario');
-        Route::post('/criarUsuario', [AdministradorController::class, 'criarUsuario'])->name('administrador.criarUsuario');
         // rotas do Comissao Organizadora
         Route::get('/home/comissaoOrganizadora', [CoordComissaoOrganizadoraController::class, 'index'])->name('home.organizadora');
         Route::post('comissaoOrganizadora/novoUsuario', [ComissaoOrganizadoraController::class, 'store'])->name('cadastrar.comissaoOrganizadora');
@@ -209,7 +168,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
         Route::post('/evento/{evento}/inscricao-pcd', [InscricaoPCDController::class, 'store'])->name('inscricao.pcd.store');
         // Rotas para o coordenador gerir as solicitações
         Route::prefix('/coord/evento/')->name('coord.')->group(function () {
-            Route::get('{evento}/versoes-finais', [VersaoFinalController::class, 'listar'])->name('listarVersoesFinais');
             Route::get('inscricoes-pcd', [InscricaoPCDController::class, 'listar'])->name('inscricoes.pcd.listar');
             Route::post('/inscricao-pcd/{solicitacao}/aprovar', [InscricaoPCDController::class, 'aprovar'])->name('inscricao.pcd.aprovar');
             Route::post('/inscricao-pcd/{solicitacao}/rejeitar', [InscricaoPCDController::class, 'rejeitar'])->name('inscricao.pcd.rejeitar');
@@ -221,7 +179,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
     });
 
     Route::get('search/user', [UserController::class, 'searchUser'])->name('search.user');
-    Route::get('search/userInscricao', [UserController::class, 'searchUserInscricao'])->name('search.userInscricao');
 
     // rotas de teste
     Route::get('/downloadArquivo', [HomeController::class, 'downloadArquivo'])->name('download');
@@ -242,8 +199,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
             Route::get('trabalhos/definirSubmissoes', [EventoController::class, 'definirSubmissoes'])->name('definirSubmissoes');
             Route::get('trabalhos/listarTrabalhos/{column?}/{direction?}/{status?}', [EventoController::class, 'listarTrabalhos'])->name('listarTrabalhos');
             Route::get('trabalhos/listarTrabalhosPorEixo/{column?}/{direction?}/{status?}', [EventoController::class, 'listarTrabalhosPorEixo'])->name('listarTrabalhosPorEixo');
-            Route::get('trabalhos/downloadTrabalhosEixo', [EventoController::class, 'downloadTrabalhosEixo'])->name('downloadTrabalhosEixo');
-            Route::get('trabalhos/download-aprovados-eixo', [EventoController::class, 'downloadTrabalhosAprovadosEixo'])->name('downloadTrabalhosAprovadosEixo');
             Route::get('trabalhos/listarTrabalhosModalidades/{column?}/{direction?}/{status?}', [EventoController::class, 'listarTrabalhosModalidades'])->name('listarTrabalhosModalidades');
             Route::get('trabalhos/{id}/resultados/{column?}/{direction?}/{status?}', [TrabalhoController::class, 'resultados'])->name('resultados');
             Route::post('trabalhos/parecer_final', [TrabalhoController::class, 'parecerFinalTrabalho'])->name('parecer.final');
@@ -252,18 +207,12 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
             Route::get('trabalhos/edit/{id}', [TrabalhoController::class, 'edit'])->name('trabalho.edit');
 
             Route::get('trabalhos/listarAvaliacoes/{column?}/{direction?}/{status?}', [EventoController::class, 'listarAvaliacoes'])->name('listarAvaliacoes');
-            Route::get('trabalhos/listarAvaliacoesPorEixo/{column?}/{direction?}/{status?}', [EventoController::class, 'listarAvaliacoesPorEixo'])->name('listarAvaliacoesPorEixo');
             Route::delete('avaliacao/trabalho/{trabalho_id}', [TrabalhoController::class, 'destroyAvaliacao'])->name('avaliacao.destroy');
             Route::get('trabalhos/form/listarRepostasTrabalhos/{column?}/{direction?}/{status?}', [EventoController::class, 'listarRespostasTrabalhos'])->name('respostasTrabalhos');
             Route::get('trabalhos/form/visualizarRespostaFormulario', [EventoController::class, 'visualizarRespostaFormulario'])->name('visualizarRespostaFormulario');
             Route::get('trabalhos/listarCorrecoes/{eventoId}/{column?}/{direction?}', [EventoController::class, 'listarCorrecoes'])->name('listarCorrecoes');
-            Route::get('trabalhos/listarCorrecoesPorEixo', [EventoController::class, 'listarCorrecoesPorEixo'])->name('listarCorrecoesPorEixo');
-            Route::get('trabalhos/listarCorrecoesPorModalidade/{column?}/{direction?}', [EventoController::class, 'listarCorrecoesPorModalidade'])->name('listarCorrecoesPorModalidade');
             Route::get('trabalhos/listarValidacoes/{eventoId}/{column?}/{direction?}', [EventoController::class, 'listarValidacoes'])->name('listarValidacoes');
-            Route::get('/evento/{eventoId}/validacoes/modalidade/{modalidadeId}', [EventoController::class, 'listarValidacoesPorModalidade'])->name('listarValidacoesPorModalidade');
-            Route::get('trabalhos/listarValidacoesPorEixo', [EventoController::class, 'listarValidacoesPorEixo'])->name('listarValidacoesPorEixo');
             Route::post('/coordenador/trabalho/{trabalho}/resetar-validacao', [EventoController::class, 'resetarValidacao'])->name('trabalho.resetarValidacao');
-            Route::post('/trabalho/{trabalho}/validar-correcao-coordenador', [EventoController::class, 'validarCorrecaoCoordenador'])->name('validarCorrecao');
 
             Route::get('areas/cadastrarAreas', [EventoController::class, 'cadastrarAreas'])->name('cadastrarAreas');
             Route::get('areas/listarAreas', [EventoController::class, 'listarAreas'])->name('listarAreas');
@@ -271,7 +220,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
             Route::get('revisores/cadastrarRevisores', [EventoController::class, 'cadastrarRevisores'])->name('cadastrarRevisores');
 
             Route::get('revisores/listarRevisores', [EventoController::class, 'listarRevisores'])->name('listarRevisores');
-            Route::get('/evento/{evento}/exportar-revisores', [EventoController::class, 'exportarRevisoresXLSX'])->name('evento.exportarRevisores');
             Route::get('revisores/listarUsuarios', [EventoController::class, 'listarUsuarios'])->name('listarUsuarios');
             Route::post('/evento/candidatos-avaliadores', [CandidatoAvaliadorController::class, 'store'])->name('candidatoAvaliador.store');
             Route::get('revisores/listarCandidatos/{evento}', [CandidatoAvaliadorController::class, 'listarCandidatos'])->name('candidatoAvaliador.listarCandidatos');
@@ -292,7 +240,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
             Route::get('comissaoCientifica/definirCoordComissao', [EventoController::class, 'definirCoordComissao'])->name('definirCoordComissao');
             Route::get('comissaoCientifica/definirCoordEixo', [EventoController::class, 'definirCoordEixo'])->name('definirCoordEixo');
             Route::get('comissaoCientifica/listarComissao', [EventoController::class, 'listarComissao'])->name('listarComissao');
-            Route::get('/evento/{evento}/exportar-comissao-cientifica', [EventoController::class, 'exportarComissaoCientificaXLSX'])->name('evento.exportarComissaoCientifica');
             //Outras comissoes
             Route::get('/{evento}/tipocomissao/{comissao}', [TipoComissaoController::class, 'show'])->name('tipocomissao.show');
             Route::get('/{evento}/tipocomissao', [TipoComissaoController::class, 'create'])->name('tipocomissao.create');
@@ -336,6 +283,7 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
             Route::post('certificados/{id}/editCertificado', [CertificadoController::class, 'update'])->name('certificado.update');
             Route::get('certificados/ajax-listar-destinatarios', [CertificadoController::class, 'ajaxDestinatarios'])->name('ajax.listar.destinatarios');
             Route::get('certificados/{certificadoId}/preview-destinatario/{destinatarioId}/trabalho/{trabalhoId}', [CertificadoController::class, 'previewCertificado'])->name('previewCertificado');
+            Route::get('certificados/{certificadoId}/ver-destinatario/{destinatarioId}/trabalho/{trabalhoId}', [CertificadoController::class, 'visualizar_certificado_emitido'])->name('verCertificado');
             Route::delete('certificados/emissoes/deletar', [CertificadoController::class, 'deletarEmissao'])->name('deletar.emissao');
 
             Route::get('modalidade/cadastrarModalidade', [EventoController::class, 'cadastrarModalidade'])->name('cadastrarModalidade');
@@ -410,10 +358,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
         Route::get('/trabalho/encaminhar/{id}/{revisor}', [TrabalhoController::class, 'encaminharTrabalho'])->name('trabalho.encaminhar');
         Route::post('/trabalho/{id}/aprovar-reprovar', [TrabalhoController::class, 'aprovacaoTrabalho'])->name('trabalho.aprovacao');
         Route::post('/trabalho/{id}/correcao', [TrabalhoController::class, 'correcaoTrabalho'])->name('trabalho.correcao');
-        Route::get('/trabalho/{trabalho}/versao-final', [VersaoFinalController::class, 'index'])->name('trabalho.versao-final.index');
-        Route::post('/trabalho/{trabalho}/versao-final', [VersaoFinalController::class, 'store'])->name('trabalho.versao-final.store');
-        Route::get('/trabalho/{trabalho}/versao-final/{versaoFinal}/download', [VersaoFinalController::class, 'download'])->name('trabalho.versao-final.download');
-        Route::post('/trabalho/importar-apresentacoes/{eventoId}', [TrabalhoController::class, 'importarApresentacoes'])->name('trabalho.importar.apresentacoes');
         //Atribuição
         Route::get('/atribuir', [AtribuicaoController::class, 'distribuicaoAutomatica'])->name('distribuicao');
         Route::get('/atribuirPorArea', [AtribuicaoController::class, 'distribuicaoPorArea'])->name('distribuicaoAutomaticaPorArea');
@@ -445,24 +389,17 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
         Route::get('/encontrarModalidade', [ModalidadeController::class, 'find'])->name('findModalidade');
         // Ajax para encontrar modalidade especifica e enviar para o modal de edição
         Route::post('/atualizarModalidade', [ModalidadeController::class, 'update'])->name('modalidade.update');
-        Route::get('/modalidade/{modalidade}/impacto-desativacao', [ModalidadeController::class, 'impactoDesativacao'])->name('modalidade.impacto-desativacao');
         //
 
         Route::get('/evento/{evento}/downloadResumos', [EventoController::class, 'resumosToPdf'])->name('evento.downloadResumos');
-        Route::get('/evento/{evento}/exportar-relatorio-geral', [EventoController::class, 'exportarRelatorioGeral'])->name('evento.exportarRelatorioGeral');
+
         Route::get('/evento/{evento}/downloadInscritos', [EventoController::class, 'exportInscritos'])->name('evento.downloadInscritos');
         Route::get('/evento/{evento}/exportar-inscritos-xlsx', [EventoController::class, 'exportarInscritosXLSX'])->name('evento.exportarInscritosXLSX');
-        Route::get('/evento/{evento}/exportar-inscritos-necessidades-especiais', [EventoController::class, 'exportarInscritosNecessidadesEspeciaisXLSX'])->name('evento.exportarInscritosNecessidadesEspeciaisXLSX');
         Route::get('/evento/{evento}/downloadInscritosCertifica', [EventoController::class, 'exportInscritosCertifica'])->name('evento.downloadInscritosCertifica');
         Route::get('/evento/{evento}/downloadTrabalhos', [EventoController::class, 'exportTrabalhos'])->name('evento.downloadTrabalhos');
         Route::get('/evento/{evento}/downloadTrabalhosAprovadosPDF', [EventoController::class, 'downloadTrabalhosAprovadosPDF'])->name('evento.downloadTrabalhosAprovadosPDF');
         Route::post('/evento/{evento}/downloadTrabalhosCertifica', [EventoController::class, 'exportTrabalhosCertifica'])->name('evento.downloadTrabalhosCertifica');
         Route::get('/evento/{evento}/downloadAvaliacoes/{modalidade}/form/{form}', [EventoController::class, 'exportAvaliacoes'])->name('evento.downloadAvaliacoes');
-        Route::get('/evento/{evento}/exportar-avaliadores-eixos/{eixo}', [EventoController::class, 'exportarAvaliadoresXLSX'])->name('evento.exportarAvaliadoresEixos');
-        Route::get('/evento/{evento}/import/listaPresenca', [EventoController::class, 'importListaPresenca'])->name('evento.importListaPresenca');
-        Route::post('/evento/import/listaPresenca', [EventoController::class, 'processarListaPresenca'])->name('evento.processarListaPresenca');
-
-
 
         // Encontrar resumo especifico para trabalhos
         Route::get('/encontrarResumo', [TrabalhoController::class, 'findResumo'])->name('trabalhoResumo');
@@ -531,22 +468,10 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
     Route::post('/inscricoes/salvar-campo-formulario', [CampoFormularioController::class, 'store'])->name('campo.formulario.store');
     Route::post('/inscricoes/campo-excluir/{id}', [CampoFormularioController::class, 'destroy'])->name('campo.destroy');
     Route::post('inscricoes/editar-campo/{id}', [CampoFormularioController::class, 'update'])->name('campo.edit');
-    Route::post('/inscricoes/inscreverParticipante/{evento_id}', [InscricaoController::class, 'inscreverParticipante'])->name('inscricao.inscreverParticipante');
-    Route::post('/inscricoes/gerenciar-alimentacao/{evento_id}', [InscricaoController::class, 'gerenciarAlimentacao'])->name('inscricao.gerenciarAlimentacao');
+    Route::post('/inscricoes/inscreverParticipante', [InscricaoController::class, 'inscreverParticipante'])->name('inscricao.inscreverParticipante');
     Route::put('/inscricoes/{inscricao}/alterar-categoria', [InscricaoController::class, 'alterarCategoria'])->name('inscricao.alterarCategoria');
     Route::get('/inscricoes/{inscricao}/recibo', [InscricaoController::class, 'recibo'])->name('inscricao.recibo');
     Route::get('/validar/recibo/{codigo}', [InscricaoController::class, 'validarRecibo'])->name('validar.recibo');
-
-    // Processamento de Planilha de Alimentação
-    Route::get('/processar-planilha', [PlanilhaAlimentacaoController::class, 'index'])->name('processar-planilha.index');
-    Route::post('/processar-planilha', [PlanilhaAlimentacaoController::class, 'processar'])->name('processar-planilha.processar');
-
-    // Inscrição Automática via Planilha
-    Route::get('/inscricao-automatica', [InscricaoController::class, 'inscricaoAutomaticaIndex'])->name('inscricao-automatica.index');
-    Route::post('/inscricao-automatica', [InscricaoController::class, 'inscricaoAutomaticaProcessar'])->name('inscricao-automatica.processar');
-    Route::get('/inscricao-automatica/progresso', [InscricaoController::class, 'inscricaoAutomaticaProgresso'])->name('inscricao-automatica.progresso');
-    Route::get('/inscricao-automatica/status', [InscricaoController::class, 'inscricaoAutomaticaStatusProgresso'])->name('inscricao-automatica.status');
-    Route::get('/inscricao-automatica/download', [InscricaoController::class, 'inscricaoAutomaticaDownloadResultado'])->name('inscricao-automatica.download');
 
     // Checkout
     Route::prefix('checkout')->name('checkout.')->group(function () {
@@ -556,13 +481,10 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
         Route::post('/confirmar-inscricao/{id}', [CheckoutController::class, 'index'])->name('index');
         Route::post('/proccess', [CheckoutController::class, 'proccess'])->name('proccess');
         Route::get('/obrigado', [CheckoutController::class, 'obrigado'])->name('obrigado');
-        Route::get('/{id}/pagamentos', [CheckoutController::class, 'listarPagamentos'])->name('pagamentos');
-        Route::post('/pag-boleto', [CheckoutController::class, 'pagBoleto'])->name('boleto');
-        Route::post('/nova-tentativa/{evento}', [CheckoutController::class, 'novaTentativa'])->name('novaTentativa');
-    
-    // PayPal routes
-        Route::get('/paypal/success/{evento}', [CheckoutController::class, 'paypalSuccess'])->name('paypal.success');
-        Route::get('/paypal/cancel/{evento}', [CheckoutController::class, 'paypalCancel'])->name('paypal.cancel');
+            Route::get('/{id}/pagamentos', [CheckoutController::class, 'listarPagamentos'])->name('pagamentos');
+    Route::post('/pag-boleto', [CheckoutController::class, 'pagBoleto'])->name('boleto');
+    Route::post('/nova-tentativa/{evento}', [CheckoutController::class, 'novaTentativa'])->name('novaTentativa');
+
     });
     //Pagamentos
 
@@ -582,10 +504,6 @@ Route::group(['middleware' => ['auth', 'verified', 'isTemp']], function () {
     Route::get('valor/categoria', [CategoriaController::class, 'valorAjax'])->name('ajax.valor.categoria');
     Route::get('confirmar-inscricao', [InscricaoController::class, 'store'])->name('inscricao.confirmar');
 
-});
-
-Route::prefix('checkout')->name('checkout.')->group(function () {
-    Route::post('/notifications', [CheckoutController::class, 'notifications'])->name('notifications');
 });
 
 //Localization Route

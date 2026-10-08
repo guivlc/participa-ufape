@@ -73,10 +73,9 @@ class UserController extends Controller
 
         $validations = [
             'name' => 'required|string|max:255',
-            'documentos' => ['required', 'in:cpf,cnpj,passaporte'],
-            'cpf' =>  ['exclude_unless:documentos,cpf', 'bail', 'required', 'cpf'],
-            'cnpj' =>  ['exclude_unless:documentos,cnpj', 'bail', 'required', 'cnpj'],
-            'passaporte' => ['exclude_unless:documentos,passaporte', 'bail', 'required'],
+            'cpf' => ($request->passaporte == null && $request->cnpj == null ? ['bail', 'required', 'cpf'] : 'nullable'),
+            'cnpj' => ($request->passaporte == null && $request->cpf == null ? ['bail', 'required'] : 'nullable'),
+            'passaporte' => ($request->cpf == null && $request->cnpj == null ? ['bail', 'required', 'max:10'] : ['nullable']),
             'celular' => '|string|max:20',
             'instituicao' => 'required|string| max:255',
             'rua' => 'required|string|max:255',
@@ -105,7 +104,7 @@ class UserController extends Controller
             return redirect()->back()
                 ->withErrors($e->validator)
                 ->withInput()
-                ->with('error', 'Por favor, corrija os erros no formulário antes de continuar.');
+                ->with('erro', 'Por favor, corrija os erros no formulário antes de continuar.');
         }
 
         if ($request->senha_atual != null) {
@@ -113,28 +112,28 @@ class UserController extends Controller
                 return redirect()->back()
                     ->withErrors(['senha_atual' => 'A senha atual informada está incorreta. Verifique e tente novamente.'])
                     ->withInput($validator)
-                    ->with('error', 'Erro na alteração de senha. Verifique os dados informados.');
+                    ->with('erro', 'Erro na alteração de senha. Verifique os dados informados.');
             }
 
             if (! ($request->password != null)) {
                 return redirect()->back()
                     ->withErrors(['password' => 'Digite a nova senha desejada.'])
                     ->withInput($validator)
-                    ->with('error', 'Campo de nova senha é obrigatório.');
+                    ->with('erro', 'Campo de nova senha é obrigatório.');
             }
 
             if (! ($request->input('password-confirm') != null)) {
                 return redirect()->back()
                     ->withErrors(['password-confirm' => 'Digite a confirmação da nova senha.'])
                     ->withInput($validator)
-                    ->with('error', 'Confirmação de senha é obrigatória.');
+                    ->with('erro', 'Confirmação de senha é obrigatória.');
             }
 
             if (! ($request->password == $request->input('password-confirm'))) {
                 return redirect()->back()
                     ->withErrors(['password' => 'A confirmação da senha não confere com a nova senha digitada.'])
                     ->withInput($validator)
-                    ->with('error', 'As senhas não coincidem. Verifique e tente novamente.');
+                    ->with('erro', 'As senhas não coincidem. Verifique e tente novamente.');
             }
 
             $password = Hash::make($request->password);
@@ -151,7 +150,7 @@ class UserController extends Controller
                 return redirect()->back()
                     ->withErrors(['email' => 'Este e-mail já está sendo usado por outra conta. Use um e-mail diferente.'])
                     ->withInput($validator)
-                    ->with('error', 'E-mail já cadastrado. Escolha outro endereço de e-mail.');
+                    ->with('erro', 'E-mail já cadastrado. Escolha outro endereço de e-mail.');
             }
         }
 
@@ -195,15 +194,15 @@ class UserController extends Controller
             }
 
             if($temp){
-                return redirect()->route('index')->with('success', 'Perfil atualizado com sucesso! Seus dados foram salvos e você já pode participar dos eventos.');
+                return redirect()->route('index')->with('sucesso', 'Perfil atualizado com sucesso! Seus dados foram salvos e você já pode participar dos eventos.');
             }
 
-            return back()->with('success', 'Perfil atualizado com sucesso! Todas as suas informações foram salvas corretamente.');
-
+            return back()->with('sucesso', 'Perfil atualizado com sucesso! Todas as suas informações foram salvas corretamente.');
+            
         } catch (\Exception $e) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Ocorreu um erro ao atualizar o perfil. Por favor, tente novamente. Se o problema persistir, entre em contato com o suporte.');
+                ->with('erro', 'Ocorreu um erro ao atualizar o perfil. Por favor, tente novamente. Se o problema persistir, entre em contato com o suporte.');
         }
     }
 
@@ -276,7 +275,7 @@ class UserController extends Controller
     public function searchUser(Request $request)
     {
         $user = null;
-
+        
         if ($request->has('email') && !empty($request->email)) {
             $user = User::where('email', $request->email)->first(['name', 'email']);
         }
@@ -288,46 +287,6 @@ class UserController extends Controller
             'user' => [
                 $user,
             ],
-        ]);
-    }
-
-    public function searchUserInscricao(Request $request)
-    {
-        $user = null;
-        $inscricaoFinalizada = null;
-
-        if ($request->has('email') && !empty($request->email)) {
-            $user = User::where('email', $request->email)->first(['id', 'name', 'email']);
-
-            if($user && $request->has('evento_id')){
-                $inscricao = $user->inscricaos()->where('evento_id', $request->evento_id)->first();
-                $inscricaoFinalizada = $inscricao ? $inscricao->finalizada : null;
-            }
-
-            $response = [
-                'user' => [$user],
-                'inscricaoFinalizada' => $inscricaoFinalizada
-            ];
-            return response()->json($response);
-        }
-
-        if ($request->has('cpf') && !empty($request->cpf)) {
-            $user = User::where('cpf', $request->cpf)->first(['id', 'name', 'cpf']);
-            if($user && $request->has('evento_id')){
-                $inscricao = $user->inscricaos()->where('evento_id', $request->evento_id)->first();
-                $inscricaoFinalizada = $inscricao ? $inscricao->finalizada : null;
-            }
-
-            $response = [
-                'user' => [$user],
-                'inscricaoFinalizada' => $inscricaoFinalizada
-            ];
-            return response()->json($response);
-        }
-
-        return response()->json([
-            'user' => [null],
-            'inscricaoFinalizada' => null
         ]);
     }
 
@@ -349,7 +308,9 @@ class UserController extends Controller
 
         $eventos = Evento::whereHas('inscricaos', function($query) use ($user) {
                 $query->where('user_id', $user->id)
-                      ->where('finalizada', true);
+                      ->whereHas('pagamento', function($subQuery) {
+                          $subQuery->where('status', 'approved');
+                      });
             });
 
         if ($request->filled('busca')) {

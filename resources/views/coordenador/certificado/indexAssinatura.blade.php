@@ -53,12 +53,12 @@
                         <div>
                             <div>
                                 <a href="{{route('coord.editarAssinatura', ['eventoId' => $assinatura->evento->id, 'id' => $assinatura->id])}}">
-                                    <img src="{{asset('img/icons/edit-regular.svg')}}" alt="Editar" style="width: 16px; height: 16px; margin-right: 8px;">Editar
+                                    <i class="fas fa-cog" style="color: black"></i>&nbsp;&nbsp;Editar
                                 </a>
                             </div>
                             <div>
                                 <a data-bs-toggle="modal" data-bs-target="#modalStaticDeletarAssinatura_{{$assinatura->id}}" style="color: red; cursor: pointer;">
-                                    <img src="{{asset('img/icons/trash-alt-regular.svg')}}" alt="Deletar assinatura" style="width: 16px; height: 16px; margin-right: 8px;">Deletar assinatura
+                                    <i class="far fa-trash-alt" style="color: black"></i>&nbsp;&nbsp;Deletar assinatura
                                 </a>
                             </div>
                         </div>

@@ -31,7 +31,7 @@ class CreateEventosTable extends Migration
             $table->string('recolhimento')->nullable();
             $table->string('fotoEvento')->nullable();
             // $table->string('timezone')->default('America/Recife');
-            $table->boolean('publicado')->default('false');
+            $table->boolean('publicado')->default(false);
 
             $table->integer('coord_comissao_cientifica_id')->nullable();
             $table->integer('coord_comissao_organizadora_id')->nullable();

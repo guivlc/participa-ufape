@@ -12,11 +12,6 @@ class Trabalho extends Model
 {
     use SoftDeletes;
 
-    public function versoesFinais()
-    {
-        return $this->hasMany(VersaoFinal::class)->latest('id');
-    }
-
     /**
      * The attributes that are mass assignable.
      *
@@ -27,13 +22,12 @@ class Trabalho extends Model
         'titulo', 'autores', 'data', 'modalidadeId', 'areaId', 'autorId', 'eventoId', 'resumo', 'avaliado',
         'campoextra1simples', 'campoextra2simples', 'campoextra3simples', 'campoextra4simples',
         'campoextra5simples', 'campoextra1grande', 'campoextra2grande', 'campoextra3grande',
-        'campoextra4grande', 'campoextra5grande', 'status', 'aprovado', 'permite_correcao', 'apresentado', 'data_correcao_submetida', 'justificativa_correcao'
+        'campoextra4grande', 'campoextra5grande', 'status', 'aprovado', 'permite_correcao'
     ];
 
     protected $casts = [
         'aprovacao_emitida_em' => 'datetime',
-        'permite_correcao' => 'boolean',
-        'data_correcao_submetida' => 'datetime'
+        'permite_correcao' => 'boolean'
     ];
 
     public static function gerarCodigo(){
@@ -144,19 +138,8 @@ class Trabalho extends Model
     {
         $revisor = Revisor::where([['user_id', $user->id], ['areaId', $this->area->id],
             ['modalidadeId', $this->modalidade->id], ])->first();
-                // Armazena o resultado da consulta em uma variável.
-        $atribuicao = $this->atribuicoes()->where('revisor_id', $revisor->id)->first();
-        
-        // Verifica se a atribuição foi encontrada.
-        if ($atribuicao === null) {
-            return null;
-        }
-        
-        if ($atribuicao->pivot === null) {
-            return null;
-        } else {
-            return $atribuicao->pivot->parecer;
-        }
+
+        return $this->atribuicoes()->where('revisor_id', $revisor->id)->first()->pivot->parecer;
     }
 
     public function getQuantidadeAvaliacoes()
@@ -164,25 +147,5 @@ class Trabalho extends Model
         return $this->atribuicoes->map(function ($revisor) {
             return $this->avaliado($revisor->user);
         })->filter()->count();
-    }
-
-    public function temCorrecaoSubmetida(): bool
-    {
-        // Se enviou arquivo de correção
-        if ($this->arquivoCorrecao()->exists()) {
-            return true;
-        }
-
-        // Se registrou explicitamente a data de submissão da correção (modalidade texto ou arquivo)
-        if (!is_null($this->data_correcao_submetida)) {
-            return true;
-        }
-
-        // Se já passou por validação posterior
-        if (in_array($this->avaliado, ['corrigido', 'corrigido_parcialmente', 'nao_corrigido'])) {
-            return true;
-        }
-
-        return false;
     }
 }

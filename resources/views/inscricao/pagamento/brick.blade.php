@@ -3,15 +3,13 @@
 @section('content')
     <div class="alert alert-success text-center">
         <span class="fw-bold text-center" style="font-size: 20px;">
-            Conclua o pagamento para garantir a sua inscrição!
+            Conclua o pagamento para garantir a sua inscrição no CBA!
         </span>
+
     </div>
 
-    <div class="container d-flex justify-content-center">
-        <div class="col-md-8">
-            <div id="paymentBrick_container"></div>
-        </div>
-    </div>
+<div id="paymentBrick_container">
+</div>
 @endsection
 
 @section('javascript')
@@ -23,32 +21,33 @@
         locale: 'pt-BR'
     });
     const bricksBuilder = mp.bricks();
+    const categoria = @json($categoria);
     const user = @json($user);
+    const inscricao = @json($inscricao);
     const evento = @json($evento);
-    
-    const valorOriginal = @json($valorFinal);
-    const valorFinalNum = parseFloat(String(valorOriginal).replace(',', '.'));
-
     const renderPaymentBrick = async (bricksBuilder) => {
         const settings = {
             initialization: {
-                amount: valorFinalNum,
+                /*
+                    "amount" é a quantia total a pagar por todos os meios de pagamento com exceção da Conta Mercado Pago e Parcelas sem cartão de crédito, que têm seus valores de processamento determinados no backend através do "preferenceId"
+                */
+                amount: categoria.valor_total,
                 payer: {
-                    firstName: user.name ? user.name.split(' ')[0] : '',
-                    lastName: user.name ? user.name.split(' ').slice(1).join(" ") : '',
+                    firstName: user.name.split(' ').slice(0, -1).join(" "),
+                    lastName: user.name.split(' ').pop(),
                     identification: {
-                        type: user.cnpj ? "CNPJ" : "CPF",
-                        number: (user.cpf || user.cnpj || '').replace(/\D/g, ''),
+                        "type": "CPF",
+                        "number": user.cpf,
                     },
                     email: user.email,
                     address: {
-                        zipCode: user.endereco ? (user.endereco.cep || '').replace(/\D/g, '') : '',
-                        federalUnit: user.endereco ? user.endereco.uf : '',
-                        city: user.endereco ? user.endereco.cidade : '',
-                        neighborhood: user.endereco ? user.endereco.bairro : '',
-                        streetName: user.endereco ? user.endereco.rua : '',
-                        streetNumber: user.endereco ? user.endereco.numero : '',
-                        complement: user.endereco ? user.endereco.complemento : '',
+                        zipCode: user.endereco.cep,
+                        federalUnit: user.endereco.uf,
+                        city: user.endereco.cidade,
+                        neighborhood: user.endereco.bairro,
+                        streetName: user.endereco.rua,
+                        streetNumber: user.endereco.numero,
+                        complement: user.endereco.complemento,
                     },
                 },
             },
@@ -56,65 +55,63 @@
                 visual: {
                     style: {
                         customVariables: {
-                            baseColor: "#114048",
+                            "baseColor": "#114048",
                         },
                         theme: "bootstrap",
                     },
                 },
                 paymentMethods: {
+                    atm: "all",
                     creditCard: "all",
-                    debitCard: "all",
-                    bankTransfer: "all", // Pix
-                    ticket: "all",       // Boleto
+                    bankTransfer: "all",
+                    ticket: "all"
                 },
                 installments: 1,
             },
             callbacks: {
                 onReady: () => {
-                    // Brick carregado
+                    /*
+                    Callback chamado quando o Brick está pronto.
+                    Aqui, você pode ocultar seu site, por exemplo.
+                    */
                 },
-                onSubmit: ({ selectedPaymentMethod, formData }) => {
+                onSubmit: ({
+                    selectedPaymentMethod,
+                    formData
+                }) => {
                     formData.evento = evento.id;
-                    
+                    // callback chamado quando há click no botão de envio de dados
                     return new Promise((resolve, reject) => {
-                        fetch("{{ route('checkout.processPayment') }}", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            },
-                            body: JSON.stringify(formData),
-                        })
-                        .then(async (response) => {
-                            const resData = await response.json();
-                            if (response.ok && resData.status === 'success') {
+                        fetch("/checkout/process_payment", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                                },
+                                body: JSON.stringify(formData),
+                            })
+                            .then((response) => window.location.href = '/checkout/status-pagamento/' + evento.id)
+                            .then((response) => {
                                 resolve();
-                                window.location.href = resData.redirect_url;
-                            } else {
-                                alert(resData.message || 'Erro ao processar pagamento.');
+                            })
+                            .catch((error) => {
+                                // manejar a resposta de erro ao tentar criar um pagamento
                                 reject();
-                            }
-                        })
-                        .catch((error) => {
-                            console.error('Erro na requisição:', error);
-                            alert('Falha na comunicação com o servidor de pagamento.');
-                            reject();
-                        });
+                            });
                     });
                 },
                 onError: (error) => {
-                    console.error("Erro no Brick:", error);
+                    // callback chamado para todos os casos de erro do Brick
+                    console.error(error);
                 },
             },
         };
-        
         window.paymentBrickController = await bricksBuilder.create(
             "payment",
             "paymentBrick_container",
             settings
         );
     };
-
     renderPaymentBrick(bricksBuilder);
 </script>
 @endsection

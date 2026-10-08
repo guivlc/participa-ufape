@@ -34,7 +34,7 @@ class EmailConfirmacaoCadastro extends Mailable
     {
         return $this
                 ->to($this->email)
-                ->subject('Cadastro Concluído - SBEE')
+                ->subject('Cadastro Concluído - Participa')
                 ->markdown('emails.confirmacao-cadastro',[
                     'user' => $this->user,
                 ]);
